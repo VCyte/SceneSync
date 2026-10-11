@@ -9,6 +9,9 @@ public final class ScenePose {
 
     public static void apply(HumanoidModel<?> model, SceneTrack.Sample sample) {
         float phase = sample.ticks() * 0.35f;
+        // Don't let the actor's live mouse aim make the head snap independently of the scene body.
+        model.head.yRot = 0.0f;
+        model.head.xRot = 0.0f;
         switch (sample.animation()) {
             case "wave" -> {
                 model.rightArm.xRot = -1.55f + (float)Math.sin(phase * 2.0f) * 0.42f;

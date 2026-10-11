@@ -12,12 +12,12 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.joml.Quaternionf;
 
 @Mixin(Camera.class)
 public abstract class CameraMixin {
     @Shadow public abstract Entity entity();
     @Shadow protected abstract void setPosition(Vec3 position);
+    @Shadow private float fov;
 
     @Inject(method = "update(Lnet/minecraft/client/DeltaTracker;)V", at = @At("TAIL"))
     private void scenesync$applyCameraMotion(DeltaTracker tracker, CallbackInfo ci) {
@@ -30,13 +30,8 @@ public abstract class CameraMixin {
                     sample.worldY() - cameraEntity.getY(), sample.worldZ() - cameraEntity.getZ());
             setPosition(((Camera)(Object)this).position().add(correction));
         }
-        float shake = sample.cameraShake();
-        float phase = sample.ticks() * 1.73f;
-        float shakeYaw = (float)Math.sin(phase) * shake;
-        float shakePitch = (float)Math.cos(phase * 1.31f) * shake;
-        Quaternionf rotation = ((CameraAccessor)(Object)this).scenesync$getRotation();
-        rotation.rotateLocalY((float)Math.toRadians(sample.cameraYaw() + shakeYaw));
-        rotation.rotateLocalX((float)Math.toRadians(sample.cameraPitch() + shakePitch));
-        rotation.rotateLocalZ((float)Math.toRadians(sample.cameraRoll()));
+        // Deliberately preserve the player's own look direction. Scene camera rotation/shake
+        // values are not applied because forcing them causes motion discomfort and aim drift.
+        fov = Math.max(30.0f, Math.min(110.0f, fov + sample.cameraFov()));
     }
 }

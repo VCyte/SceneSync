@@ -19,6 +19,7 @@ final class SceneBridge implements PluginMessageListener {
     static final String HELLO = "scenesync:hello";
     static final String PLAY = "scenesync:play";
     static final String STOP = "scenesync:stop";
+    static final int PROTOCOL = 2;
     static final int MAX_PACKET_BYTES = 64 * 1024;
     private final SceneSyncPlugin plugin;
     private final Map<UUID, Session> sessions = new HashMap<>();
@@ -44,14 +45,14 @@ final class SceneBridge implements PluginMessageListener {
         if (!HELLO.equals(channel) || message == null || message.length == 0 || message.length > 4096) return;
         if (!allowHello(player.getUniqueId())) return;
         JsonObject request = parse(message);
-        if (request == null || integer(request, "protocol", -1) != 1) return;
+        if (request == null || integer(request, "protocol", -1) != PROTOCOL) return;
         long clientTime = longNumber(request, "clientTime", -1);
         long now = System.currentTimeMillis();
         if (clientTime <= 0 || clientTime < now - 86_400_000L || clientTime > now + 86_400_000L) return;
         Session session = sessions.computeIfAbsent(player.getUniqueId(),
                 ignored -> new Session(UUID.randomUUID().toString().replace("-", ""), System.nanoTime()));
         JsonObject response = new JsonObject();
-        response.addProperty("protocol", 1);
+        response.addProperty("protocol", PROTOCOL);
         response.addProperty("clientTime", clientTime);
         response.addProperty("serverTime", now);
         response.addProperty("session", session.token());
@@ -66,7 +67,7 @@ final class SceneBridge implements PluginMessageListener {
         Session session = sessions.get(viewer.getUniqueId());
         if (session == null) return;
         JsonObject packet = new JsonObject();
-        packet.addProperty("protocol", 1);
+        packet.addProperty("protocol", PROTOCOL);
         packet.addProperty("session", session.token());
         packet.addProperty("runId", runId);
         packet.addProperty("entityId", actor.getEntityId());
@@ -87,6 +88,7 @@ final class SceneBridge implements PluginMessageListener {
             f.addProperty("animation", frame.animation());
             f.addProperty("cameraYaw", frame.cameraYaw()); f.addProperty("cameraPitch", frame.cameraPitch());
             f.addProperty("cameraRoll", frame.cameraRoll()); f.addProperty("cameraShake", frame.cameraShake());
+            f.addProperty("cameraFov", frame.cameraFov());
             frames.add(f);
         }
         packet.add("frames", frames);
@@ -97,7 +99,7 @@ final class SceneBridge implements PluginMessageListener {
         Session session = sessions.get(viewer.getUniqueId());
         if (session == null) return;
         JsonObject packet = new JsonObject();
-        packet.addProperty("protocol", 1); packet.addProperty("session", session.token());
+        packet.addProperty("protocol", PROTOCOL); packet.addProperty("session", session.token());
         packet.addProperty("entityId", entityId); packet.addProperty("runId", runId);
         send(viewer, STOP, packet);
     }

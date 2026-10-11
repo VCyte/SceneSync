@@ -32,7 +32,7 @@ public final class SceneSyncPlugin extends JavaPlugin implements Listener {
         command.setExecutor(executor);
         command.setTabCompleter(executor);
         Bukkit.getScheduler().runTaskTimer(this, manager::tick, 1L, 1L);
-        getLogger().info("SceneSync 0.1.0 enabled (protocol 1).");
+        getLogger().info("SceneSync 0.1.0 enabled (protocol 2).");
     }
 
     @Override public void onDisable() {
@@ -47,20 +47,13 @@ public final class SceneSyncPlugin extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onMovement(PlayerMoveEvent event) {
         if (manager == null || event.getTo() == null) return;
-        if (event instanceof PlayerTeleportEvent && !manager.isInternalTeleport()) manager.stop(event.getPlayer());
-        if (!manager.locksMovement(event.getPlayer())) return;
-        if (!event.getFrom().getWorld().equals(event.getTo().getWorld())
-                || event.getFrom().distanceSquared(event.getTo()) > 0.0001) {
-            var freeze = event.getFrom().clone();
-            freeze.setYaw(event.getTo().getYaw());
-            freeze.setPitch(event.getTo().getPitch());
-            event.setTo(freeze);
-        }
+        if (event instanceof PlayerTeleportEvent) manager.stop(event.getPlayer());
+        manager.acceptClientMovement(event.getPlayer(), event.getFrom(), event.getTo());
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onExternalTeleport(PlayerTeleportEvent event) {
-        if (manager != null && !manager.isInternalTeleport()) manager.stop(event.getPlayer());
+        if (manager != null) manager.stop(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

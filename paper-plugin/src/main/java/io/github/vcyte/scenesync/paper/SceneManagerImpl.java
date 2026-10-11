@@ -7,8 +7,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
-import org.bukkit.event.player.PlayerTeleportEvent;
-import org.bukkit.util.Vector;
 
 import java.util.*;
 
@@ -22,8 +20,6 @@ final class SceneManagerImpl implements SceneManager {
     private final Map<String, SceneDefinition> registered = new LinkedHashMap<>();
     private final Map<UUID, ActiveScene> active = new HashMap<>();
     private double viewDistance = 64.0;
-    private boolean allowPlayerInput;
-    private boolean internalTeleport;
 
     SceneManagerImpl(SceneSyncPlugin plugin, SceneBridge bridge) { this.plugin = plugin; this.bridge = bridge; }
 
@@ -35,7 +31,6 @@ final class SceneManagerImpl implements SceneManager {
             if (!Double.isFinite(configuredView) || configuredView < 8 || configuredView > 128)
                 throw new IllegalArgumentException("max-view-distance must be in 8..128");
             viewDistance = configuredView;
-            allowPlayerInput = plugin.getConfig().getBoolean("allow-player-input", false);
             var sections = plugin.getConfig().getConfigurationSection("scenes");
             if (sections != null) {
                 if (sections.getKeys(false).size() > MAX_CONFIG_SCENES) throw new IllegalArgumentException("too many configured scenes");
@@ -59,8 +54,9 @@ final class SceneManagerImpl implements SceneManager {
                             float cameraPitch = number(raw, "camera-pitch", 0).floatValue();
                             float cameraRoll = number(raw, "camera-roll", 0).floatValue();
                             float shake = number(raw, "camera-shake", 0).floatValue();
+                            float cameraFov = number(raw, "camera-fov", 0).floatValue();
                             frames.add(new SceneFrame(tick, x, y, z, yaw, pitch, animation,
-                                    cameraYaw, cameraPitch, cameraRoll, shake));
+                                    cameraYaw, cameraPitch, cameraRoll, shake, cameraFov));
                         }
                         candidate.put(id, new SceneDefinition(id, duration, frames));
                     } catch (RuntimeException e) {
@@ -106,7 +102,7 @@ final class SceneManagerImpl implements SceneManager {
                 || active.size() >= 128) return false;
         stop(actor);
         ActiveScene run = new ActiveScene(UUID.randomUUID().toString().replace("-", ""), actor,
-                scene, actor.getLocation().clone(), System.currentTimeMillis() + 250);
+                scene, actor.getLocation().clone(), System.currentTimeMillis() + 500);
         active.put(actor.getUniqueId(), run);
         broadcastStart(run);
         return true;
@@ -126,16 +122,42 @@ final class SceneManagerImpl implements SceneManager {
         for (ActiveScene run : new ArrayList<>(active.values())) {
             if (!run.actor.isOnline() || run.actor.isDead() || run.actor.isInsideVehicle()
                     || !run.actor.getWorld().equals(run.origin.getWorld())) { stopInternal(run); continue; }
-            if (run.elapsedTicks >= run.definition.durationTicks()) { stopInternal(run); continue; }
-            Location next = locationAt(run, run.elapsedTicks);
-            if (next == null || !safe(next)) { stopInternal(run); continue; }
-            internalTeleport = true;
-            try {
-                if (!run.actor.teleport(next, PlayerTeleportEvent.TeleportCause.PLUGIN)) { stopInternal(run); continue; }
-            } finally { internalTeleport = false; }
-            run.elapsedTicks++;
+            long now = System.currentTimeMillis();
+            if (now < run.startAtMillis) continue;
+            int timelineTick = (int)((now - run.startAtMillis) / 50L);
+            if (timelineTick > run.definition.durationTicks()) { stopInternal(run); continue; }
+            boolean validPath = true;
+            for (int tick = Math.max(0, run.elapsedTicks + 1); tick <= timelineTick; tick++) {
+                Location expected = locationAt(run, tick);
+                if (expected == null || !safe(expected)) { validPath = false; break; }
+            }
+            if (!validPath) { stopInternal(run); continue; }
+            run.elapsedTicks = timelineTick;
             if (run.elapsedTicks % 10 == 0) syncNewViewers(run);
         }
+    }
+
+    boolean acceptClientMovement(Player actor, Location from, Location to) {
+        ActiveScene run = active.get(actor.getUniqueId());
+        if (run == null || to == null || !Bukkit.isPrimaryThread()) return true;
+        if (to.getWorld() == null || !to.getWorld().equals(run.origin.getWorld())) {
+            stopInternal(run);
+            return true;
+        }
+        if (from != null && from.getWorld() != null && from.getWorld().equals(to.getWorld())
+                && from.distanceSquared(to) < 1.0e-8) return true;
+        long now = System.currentTimeMillis();
+        if (now < run.startAtMillis) return true;
+        int currentTick = (int)((now - run.startAtMillis) / 50L);
+        int firstTick = Math.max(0, currentTick - 6);
+        int lastTick = Math.min(run.definition.durationTicks(), currentTick + 1);
+        for (int tick = firstTick; tick <= lastTick; tick++) {
+            Location expected = locationAt(run, tick);
+            if (expected != null && expected.distanceSquared(to) <= 0.75 * 0.75) return true;
+        }
+        // A collision, competing movement plugin, or client desync must not trigger a correction loop.
+        stopInternal(run);
+        return true;
     }
 
     private void syncNewViewers(ActiveScene run) {
@@ -193,8 +215,6 @@ final class SceneManagerImpl implements SceneManager {
         for (ActiveScene run : active.values()) run.viewers.remove(viewer.getUniqueId());
     }
     @Override public boolean isPlaying(Player actor) { return active.containsKey(actor.getUniqueId()); }
-    boolean isInternalTeleport() { return internalTeleport; }
-    boolean locksMovement(Player actor) { return !allowPlayerInput && active.containsKey(actor.getUniqueId()) && !internalTeleport; }
 
     private void stopInternal(ActiveScene run) {
         if (!active.remove(run.actor.getUniqueId(), run)) return;
@@ -210,7 +230,7 @@ final class SceneManagerImpl implements SceneManager {
 
     private static final class ActiveScene {
         final String runId; final Player actor; final SceneDefinition definition; final Location origin;
-        final long startAtMillis; final Set<UUID> viewers = new HashSet<>(); int elapsedTicks;
+        final long startAtMillis; final Set<UUID> viewers = new HashSet<>(); int elapsedTicks = -1;
         ActiveScene(String runId, Player actor, SceneDefinition definition, Location origin, long startAtMillis) {
             this.runId = runId; this.actor = actor; this.definition = definition; this.origin = origin; this.startAtMillis = startAtMillis;
         }

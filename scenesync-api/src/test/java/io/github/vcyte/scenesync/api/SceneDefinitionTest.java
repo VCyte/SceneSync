@@ -27,6 +27,14 @@ class SceneDefinitionTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new SceneFrame(0, 0, 0, 0, 0, 0, "idle", 0, 0, 0, 11));
     }
+    @Test void acceptsBoundedFovAndLegacyConstructorDefaultsToNeutral() {
+        assertEquals(0.0f, frame(0).cameraFov());
+        assertEquals(-25.0f, new SceneFrame(0, 0, 0, 0, 0, 0, "idle", 0, 0, 0, 0, -25).cameraFov());
+    }
+    @Test void rejectsExcessiveCameraFovOffset() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new SceneFrame(0, 0, 0, 0, 0, 0, "idle", 0, 0, 0, 0, 26));
+    }
     @Test void rejectsNonfiniteMovement() {
         assertThrows(IllegalArgumentException.class,
                 () -> new SceneFrame(0, Double.NaN, 0, 0, 0, 0, "idle", 0, 0, 0, 0));

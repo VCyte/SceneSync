@@ -35,7 +35,21 @@ class SceneTrackTest {
         assertEquals(55.0f, sample.yaw(), 1.0e-4f);
     }
 
+    @Test void fovOffsetUsesSmoothEasingBetweenKeyframes() {
+        SceneTrack track = new SceneTrack("run-3", 9, 20, 1_000,
+                0, 64, 0, 0,
+                List.of(frameWithFov(0, 0), frameWithFov(20, -20)));
+
+        SceneTrack.Sample sample = track.sample(1_250);
+
+        assertEquals(-3.125f, sample.cameraFov(), 1.0e-4f);
+    }
+
     private static SceneTrack.Frame frame(int tick, double x, double y, double z, float yaw) {
         return new SceneTrack.Frame(tick, x, y, z, yaw, 0, "walk", 0, 0, 0, 0);
+    }
+
+    private static SceneTrack.Frame frameWithFov(int tick, float fov) {
+        return new SceneTrack.Frame(tick, 0, 0, 0, 0, 0, "idle", 0, 0, 0, 0, fov);
     }
 }

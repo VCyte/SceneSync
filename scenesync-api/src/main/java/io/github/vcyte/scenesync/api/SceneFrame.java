@@ -14,7 +14,8 @@ public record SceneFrame(
         float cameraYaw,
         float cameraPitch,
         float cameraRoll,
-        float cameraShake
+        float cameraShake,
+        float cameraFov
 ) {
     public static final Set<String> SUPPORTED_ANIMATIONS = Set.of("idle", "walk", "run", "wave", "bow", "spin", "clap", "sit");
     public SceneFrame {
@@ -28,6 +29,13 @@ public record SceneFrame(
         bounded(cameraRoll, "cameraRoll", 45f);
         if (!Float.isFinite(cameraShake) || cameraShake < 0 || cameraShake > 10f)
             throw new IllegalArgumentException("cameraShake must be finite and in 0..10");
+        bounded(cameraFov, "cameraFov", 25f);
+    }
+
+    /** Compatibility overload; legacy camera rotation/shake fields remain accepted but are not applied. */
+    public SceneFrame(int tick, double x, double y, double z, float yaw, float pitch, String animation,
+                      float cameraYaw, float cameraPitch, float cameraRoll, float cameraShake) {
+        this(tick, x, y, z, yaw, pitch, animation, cameraYaw, cameraPitch, cameraRoll, cameraShake, 0f);
     }
 
     private static void bounded(double value, String name) {

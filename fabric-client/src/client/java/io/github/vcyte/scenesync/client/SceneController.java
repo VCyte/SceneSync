@@ -30,7 +30,7 @@ public final class SceneController {
 
     static boolean acceptPlay(JsonObject json, long serverOffsetMillis) {
         try {
-            int protocol = integer(json, "protocol", -1, 1, 1);
+            int protocol = integer(json, "protocol", -1, 2, 2);
             int entityId = integer(json, "entityId", -1, 0, Integer.MAX_VALUE);
             int duration = integer(json, "durationTicks", -1, 1, 24_000);
             String runId = string(json, "runId", 64);
@@ -42,7 +42,7 @@ public final class SceneController {
             double originZ = decimal(json, "originZ", Double.NaN, -30_000_000, 30_000_000);
             float originYaw = (float)decimal(json, "originYaw", Double.NaN, -360, 360);
             JsonArray source = json.getAsJsonArray("frames");
-            if (protocol != 1 || entityId < 0 || runId == null || !ID.matcher(runId).matches()
+            if (protocol != 2 || entityId < 0 || runId == null || !ID.matcher(runId).matches()
                     || duration < 1 || source == null || source.isEmpty() || source.size() > 128
                     || !Double.isFinite(originX) || !Double.isFinite(originY) || !Double.isFinite(originZ)
                     || !Float.isFinite(originYaw) || localStart < now - 120_000L || localStart > now + 120_000L) return false;
@@ -62,9 +62,10 @@ public final class SceneController {
                 float cameraPitch = (float) decimal(f, "cameraPitch", 0, -45, 45);
                 float cameraRoll = (float) decimal(f, "cameraRoll", 0, -45, 45);
                 float shake = (float) decimal(f, "cameraShake", 0, 0, 10);
+                float cameraFov = (float) decimal(f, "cameraFov", 0, -25, 25);
                 if (tick <= previous || animation == null || !POSES.contains(animation)) return false;
                 frames.add(new SceneTrack.Frame(tick, x, y, z, yaw, pitch, animation,
-                        cameraYaw, cameraPitch, cameraRoll, shake));
+                        cameraYaw, cameraPitch, cameraRoll, shake, cameraFov));
                 previous = tick;
             }
             if (frames.getFirst().tick() != 0) return false;
@@ -75,7 +76,7 @@ public final class SceneController {
     }
 
     static void stop(JsonObject json) {
-        if (integer(json, "protocol", -1, 1, 1) != 1) return;
+        if (integer(json, "protocol", -1, 2, 2) != 2) return;
         int id = integer(json, "entityId", -1, 0, Integer.MAX_VALUE);
         String runId = string(json, "runId", 64);
         if (id < 0 || runId == null || !ID.matcher(runId).matches()) return;
@@ -89,6 +90,15 @@ public final class SceneController {
         if (sample == null && now >= track.localStartMillis() + (long) track.durationTicks() * 50L)
             TRACKS.remove(entityId, track);
         return sample;
+    }
+
+    public static boolean controlsInput(int entityId, long now) {
+        SceneTrack track = TRACKS.get(entityId);
+        if (track == null) return false;
+        long end = track.localStartMillis() + (long)track.durationTicks() * 50L;
+        if (now <= end) return true;
+        TRACKS.remove(entityId, track);
+        return false;
     }
 
     static void clear() { TRACKS.clear(); }
