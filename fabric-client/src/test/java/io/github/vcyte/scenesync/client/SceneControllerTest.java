@@ -121,6 +121,11 @@ class SceneControllerTest {
         assertNotNull(handoff);
         assertEquals(1.0f, handoff.rootWeight(), 1.0e-6f);
         assertEquals(8.0, handoff.sample().worldZ(), 1.0e-5);
+        assertEquals(1.0f, handoff.sample().sceneBlend(), 1.0e-6f,
+                "natural handoff must start from the final authored pose");
+        SceneTrack.Sample halfway = SceneController.visualSample(entityId, end + 101);
+        assertNotNull(halfway);
+        assertTrue(halfway.sceneBlend() > 0.0f && halfway.sceneBlend() < 1.0f);
         assertFalse(SceneController.controlsInput(entityId, end + 2));
     }
 

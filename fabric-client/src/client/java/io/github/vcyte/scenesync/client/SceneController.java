@@ -154,7 +154,13 @@ public final class SceneController {
     private static void beginNaturalFade(int entityId, SceneTrack track, long now) {
         long end = track.localStartMillis() + (long)track.durationTicks() * 50L;
         SceneTrack.Sample endpoint = track.sample(end);
-        if (endpoint != null) POSE_FADES.putIfAbsent(entityId, new PoseFade(endpoint, now, endpoint.sceneBlend()));
+        if (endpoint != null) {
+            // sceneEnvelope intentionally reaches zero at the exact timeline end,
+            // but the render-only handoff must start from the final authored pose,
+            // not from an already-reset vanilla pose.
+            SceneTrack.Sample held = endpoint.withSceneBlend(1.0f);
+            POSE_FADES.putIfAbsent(entityId, new PoseFade(held, now, 1.0f));
+        }
     }
 
     static void clear() { TRACKS.clear(); POSE_FADES.clear(); }
