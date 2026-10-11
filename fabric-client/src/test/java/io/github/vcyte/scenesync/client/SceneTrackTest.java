@@ -35,6 +35,22 @@ class SceneTrackTest {
         assertEquals(55.0f, sample.yaw(), 1.0e-4f);
     }
 
+    @Test void stationaryScenePreservesAllCardinalStartingDirections() {
+        assertEquals(0.0f, stationaryYaw(0), 1.0e-4f);       // south
+        assertEquals(-180.0f, stationaryYaw(180), 1.0e-4f); // north (wrapped equivalent)
+        assertEquals(90.0f, stationaryYaw(90), 1.0e-4f);   // west
+        assertEquals(-90.0f, stationaryYaw(-90), 1.0e-4f); // east
+    }
+
+    @Test void movingSceneUsesWorldTravelDirectionForEveryCardinalBasis() {
+        // Authored local +Z is forward. Rotating the actor basis must rotate both
+        // the path and the resulting body yaw, without a hidden 90-degree offset.
+        assertEquals(0.0f, movingYaw(0), 1.0e-4f);       // south
+        assertEquals(-180.0f, movingYaw(180), 1.0e-4f);   // north (wrapped equivalent)
+        assertEquals(90.0f, movingYaw(90), 1.0e-4f);     // west
+        assertEquals(-90.0f, movingYaw(-90), 1.0e-4f);   // east
+    }
+
     @Test void fovOffsetUsesSmoothEasingBetweenKeyframes() {
         SceneTrack track = new SceneTrack("run-3", 9, 20, 1_000,
                 0, 64, 0, 0,
@@ -127,6 +143,20 @@ class SceneTrackTest {
 
     private static SceneTrack.Frame frame(int tick, double x, double y, double z, float yaw) {
         return new SceneTrack.Frame(tick, x, y, z, yaw, 0, "walk", 0, 0, 0, 0);
+    }
+
+    private static float stationaryYaw(float originYaw) {
+        SceneTrack track = new SceneTrack("stationary-" + originYaw, 20, 20, 1_000,
+                0, 64, 0, originYaw,
+                List.of(frame(0, 0, 0, 0, 0), frame(20, 0, 0, 0, 0)));
+        return track.sample(1_500).yaw();
+    }
+
+    private static float movingYaw(float originYaw) {
+        SceneTrack track = new SceneTrack("moving-" + originYaw, 21, 20, 1_000,
+                0, 64, 0, originYaw,
+                List.of(frame(0, 0, 0, 0, 0), frame(20, 0, 0, 2, 0)));
+        return track.sample(1_500).yaw();
     }
 
     private static SceneTrack.Frame frameWithFov(int tick, float fov) {

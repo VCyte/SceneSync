@@ -259,13 +259,21 @@ final class SceneManagerImpl implements SceneManager {
         long now = System.currentTimeMillis();
         if (now < run.startAtMillis) return true;
         double currentTick = (now - run.startAtMillis) / 50.0;
-        double firstTick = Math.max(0.0, currentTick - 6.0);
-        double lastTick = Math.min(run.definition.durationTicks(), currentTick + 1.0);
+        // A movement event can arrive several server ticks after the client sampled
+        // the shared clock. Keep a bounded lag window so one jittery packet cannot
+        // tear down an otherwise valid dash.
+        double firstTick = Math.max(0.0, currentTick - 10.0);
+        double lastTick = Math.min(run.definition.durationTicks(), currentTick + 2.0);
         if (ScenePathMath.matches(run.definition.frames(), firstTick, lastTick,
                 run.origin.getX(), run.origin.getY(), run.origin.getZ(), run.origin.getYaw(),
-                to.getX(), to.getY(), to.getZ(), 0.75)) return true;
-        // Competing movement plugins or client desync end the track without cancelling the packet
-        // back to a stale position; the preflighted scene curve itself is checked separately.
+                to.getX(), to.getY(), to.getZ(), 1.0)) {
+            run.movementMismatches = 0;
+            return true;
+        }
+        // Competing movement plugins or a real client desync still ends the track, but
+        // only after a short consecutive-failure grace period. This avoids the observed
+        // intermittent mid-dash freeze caused by one late/out-of-order movement event.
+        if (++run.movementMismatches < 4) return true;
         stopInternal(run);
         return true;
     }
@@ -380,7 +388,9 @@ final class SceneManagerImpl implements SceneManager {
 
     private static final class ActiveScene {
         final String runId; final Player actor; final SceneDefinition definition; final Location origin;
-        final long startAtMillis; final Set<UUID> viewers = new HashSet<>(); int elapsedTicks = -1;
+        final long startAtMillis; final Set<UUID> viewers = new HashSet<>();
+        int elapsedTicks = -1;
+        int movementMismatches;
         ActiveScene(String runId, Player actor, SceneDefinition definition, Location origin, long startAtMillis) {
             this.runId = runId; this.actor = actor; this.definition = definition; this.origin = origin; this.startAtMillis = startAtMillis;
         }

@@ -18,12 +18,22 @@ public abstract class AvatarRendererMixin {
         long now = System.currentTimeMillis();
         SceneTrack.Sample sample = SceneController.sample(state.id, now);
         if (sample != null) {
-            state.x = sample.worldX();
-            state.y = sample.worldY();
-            state.z = sample.worldZ();
-            state.yRot = sample.yaw();
-            state.bodyRot = sample.yaw();
-            state.xRot = sample.pitch();
+            // LivingEntityRenderState.yRot is the head yaw relative to bodyRot.  It is
+            // not an absolute yaw. Writing the absolute scene yaw to both fields makes
+            // the head turn twice (the classic south/north and 90-degree east/west bug).
+            // The scene root owns the body direction; pose/camera code owns head offsets.
+            float startT = Math.max(0.0f, Math.min(1.0f, sample.ticks() / 3.0f));
+            float rootWeight = startT * startT * (3.0f - 2.0f * startT);
+            float vanillaBodyYaw = state.bodyRot;
+            float vanillaHeadRelativeYaw = state.yRot;
+            float targetHeadRelativeYaw = sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK
+                    ? wrapDegrees(vanillaBodyYaw + vanillaHeadRelativeYaw - sample.yaw()) : 0.0f;
+            state.x = lerp(state.x, sample.worldX(), rootWeight);
+            state.y = lerp(state.y, sample.worldY(), rootWeight);
+            state.z = lerp(state.z, sample.worldZ(), rootWeight);
+            state.bodyRot = lerpAngle(state.bodyRot, sample.yaw(), rootWeight);
+            state.yRot = lerpAngle(state.yRot, targetHeadRelativeYaw, rootWeight);
+            state.xRot += (sample.pitch() - state.xRot) * rootWeight;
             return;
         }
         SceneController.VisualFade fade = SceneController.visualFade(state.id, now);
@@ -46,5 +56,20 @@ public abstract class AvatarRendererMixin {
         if (delta > 180.0f) delta -= 360.0f;
         if (delta < -180.0f) delta += 360.0f;
         return from + delta * amount;
+    }
+
+    private static double lerp(double from, double to, float amount) {
+        return from + (to - from) * amount;
+    }
+
+    private static float lerp(float from, float to, float amount) {
+        return from + (to - from) * amount;
+    }
+
+    private static float wrapDegrees(float degrees) {
+        degrees %= 360.0f;
+        if (degrees >= 180.0f) degrees -= 360.0f;
+        if (degrees < -180.0f) degrees += 360.0f;
+        return degrees;
     }
 }

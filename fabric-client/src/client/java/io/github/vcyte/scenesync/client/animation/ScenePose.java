@@ -6,6 +6,9 @@ import net.minecraft.client.model.geom.ModelPart;
 
 /** Applies one scene pose to player and separately rendered humanoid armor models. */
 public final class ScenePose {
+    /** Scene YAML/API translations are model pixels; ModelPart translations are model units. */
+    private static final float MODEL_PIXELS_PER_UNIT = 16.0f;
+
     private ScenePose() { }
 
     public static void apply(HumanoidModel<?> model, SceneTrack.Sample sample) {
@@ -81,9 +84,9 @@ public final class ScenePose {
     }
 
     private static void apply(ModelPart part, SceneTrack.Bone pose, float weight) {
-        part.x += pose.x() * weight;
-        part.y += pose.y() * weight;
-        part.z += pose.z() * weight;
+        part.x += pose.x() / MODEL_PIXELS_PER_UNIT * weight;
+        part.y += pose.y() / MODEL_PIXELS_PER_UNIT * weight;
+        part.z += pose.z() / MODEL_PIXELS_PER_UNIT * weight;
         part.xRot += (float)Math.toRadians(pose.pitch()) * weight;
         part.yRot += (float)Math.toRadians(pose.yaw()) * weight;
         part.zRot += (float)Math.toRadians(pose.roll()) * weight;
