@@ -3,8 +3,15 @@ package io.github.vcyte.scenesync.client;
 import java.util.List;
 
 public record SceneTrack(String runId, int entityId, int durationTicks, long localStartMillis,
-                         double originX, double originY, double originZ, float originYaw, List<Frame> frames) {
+                         double originX, double originY, double originZ, float originYaw,
+                         CameraControl cameraControl, List<Frame> frames) {
     public SceneTrack { frames = List.copyOf(frames); }
+
+    public SceneTrack(String runId, int entityId, int durationTicks, long localStartMillis,
+                      double originX, double originY, double originZ, float originYaw, List<Frame> frames) {
+        this(runId, entityId, durationTicks, localStartMillis, originX, originY, originZ, originYaw,
+                CameraControl.DEFAULT, frames);
+    }
 
     public Sample sample(long now) {
         double ticks = (now - localStartMillis) / 50.0;
@@ -34,7 +41,8 @@ public record SceneTrack(String runId, int entityId, int durationTicks, long loc
                 lerp(a.pitch(), b.pitch(), t), a.animation(), (float)ticks,
                 lerp(a.cameraYaw(), b.cameraYaw(), t), lerp(a.cameraPitch(), b.cameraPitch(), t),
                 lerp(a.cameraRoll(), b.cameraRoll(), t), lerp(a.cameraShake(), b.cameraShake(), t),
-                lerp(a.cameraFov(), b.cameraFov(), eased));
+                lerp(a.cameraFov(), b.cameraFov(), eased), cameraControl.mode(),
+                cameraControl.maxYawDegrees(), cameraControl.maxPitchDegrees());
     }
 
     private static double lerp(double a, double b, double t) { return a + (b - a) * t; }
@@ -53,7 +61,19 @@ public record SceneTrack(String runId, int entityId, int durationTicks, long loc
             this(tick, x, y, z, yaw, pitch, animation, cameraYaw, cameraPitch, cameraRoll, cameraShake, 0f);
         }
     }
+    public enum CameraMode { FREE_LOOK, LOCKED, LIMITED }
+
+    public record CameraControl(CameraMode mode, float maxYawDegrees, float maxPitchDegrees) {
+        public static final CameraControl DEFAULT = new CameraControl(CameraMode.FREE_LOOK, 80, 45);
+        public CameraControl {
+            if (mode == null || !Float.isFinite(maxYawDegrees) || maxYawDegrees < 0 || maxYawDegrees > 100
+                    || !Float.isFinite(maxPitchDegrees) || maxPitchDegrees < 0 || maxPitchDegrees > 70)
+                throw new IllegalArgumentException("invalid scene camera control settings");
+        }
+    }
+
     public record Sample(double worldX, double worldY, double worldZ, float yaw, float pitch,
                          String animation, float ticks, float cameraYaw, float cameraPitch,
-                         float cameraRoll, float cameraShake, float cameraFov) { }
+                         float cameraRoll, float cameraShake, float cameraFov,
+                         CameraMode cameraMode, float maxYawDegrees, float maxPitchDegrees) { }
 }

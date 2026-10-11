@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 
 /** Immutable, server-owned scene timeline. Coordinates are relative to the starting actor pose. */
 public record SceneDefinition(String id, int durationTicks, List<SceneFrame> frames, DamagePolicy damagePolicy,
-                              Map<String, DamagePolicy> animationDamagePolicies) {
+                              Map<String, DamagePolicy> animationDamagePolicies, SceneCameraSettings cameraSettings) {
     public static final int MAX_FRAMES = 128;
     public static final int MAX_DURATION_TICKS = 24_000;
 
@@ -20,6 +20,7 @@ public record SceneDefinition(String id, int durationTicks, List<SceneFrame> fra
         Objects.requireNonNull(damagePolicy, "damagePolicy");
         frames = List.copyOf(Objects.requireNonNull(frames, "frames"));
         animationDamagePolicies = Map.copyOf(Objects.requireNonNull(animationDamagePolicies, "animationDamagePolicies"));
+        Objects.requireNonNull(cameraSettings, "cameraSettings");
         if (frames.isEmpty() || frames.size() > MAX_FRAMES)
             throw new IllegalArgumentException("scene must contain 1.." + MAX_FRAMES + " frames");
         int previous = -1;
@@ -36,7 +37,12 @@ public record SceneDefinition(String id, int durationTicks, List<SceneFrame> fra
     }
 
     public SceneDefinition(String id, int durationTicks, List<SceneFrame> frames, DamagePolicy damagePolicy) {
-        this(id, durationTicks, frames, damagePolicy, Map.of());
+        this(id, durationTicks, frames, damagePolicy, Map.of(), SceneCameraSettings.DEFAULT);
+    }
+
+    public SceneDefinition(String id, int durationTicks, List<SceneFrame> frames, DamagePolicy damagePolicy,
+                           Map<String, DamagePolicy> animationDamagePolicies) {
+        this(id, durationTicks, frames, damagePolicy, animationDamagePolicies, SceneCameraSettings.DEFAULT);
     }
 
     /** Backwards-compatible default: a real hit stops the scene and damage is allowed through. */

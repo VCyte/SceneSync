@@ -36,6 +36,14 @@ class SceneDefinitionTest {
         assertThrows(IllegalArgumentException.class, () -> new SceneDefinition("intro", 40, List.of(frame(0)),
                 DamagePolicy.CANCEL_SCENE, Map.of("wave", DamagePolicy.IGNORE_DAMAGE)));
     }
+    @Test void cameraDefaultsToFreeLookAndValidatesForwardConeBounds() {
+        var defaultScene = new SceneDefinition("intro", 40, List.of(frame(0)));
+        assertEquals(CameraMode.FREE_LOOK, defaultScene.cameraSettings().mode());
+        assertEquals(80.0f, defaultScene.cameraSettings().maxYawDegrees());
+        var controlled = new SceneCameraSettings(CameraMode.LIMITED, 80, 45);
+        assertEquals(CameraMode.LIMITED, controlled.mode());
+        assertThrows(IllegalArgumentException.class, () -> new SceneCameraSettings(CameraMode.LIMITED, 101, 45));
+    }
     @Test void rejectsNonzeroInitialFrame() {
         assertThrows(IllegalArgumentException.class, () -> new SceneDefinition("intro", 40, List.of(frame(1))));
     }

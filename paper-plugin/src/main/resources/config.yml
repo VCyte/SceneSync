@@ -6,6 +6,10 @@ scenes:
     animation-damage-policies:
       wave: IGNORE_DAMAGE
       bow: CANCEL_SCENE
+    camera:
+      mode: LIMITED # FREE_LOOK preserves mouse aim; LOCKED follows the authored yaw/pitch track
+      max-yaw-degrees: 80.0 # stops the view before the actor's rear
+      max-pitch-degrees: 45.0
     frames:
       - tick: 0
         x: 0.0
@@ -14,7 +18,7 @@ scenes:
         yaw: 0.0
         pitch: 0.0
         animation: idle
-        camera-yaw: 0.0 # legacy fields are ignored to preserve user look direction
+        camera-yaw: 0.0 # actor-relative target used by LOCKED/LIMITED modes
         camera-pitch: 0.0
         camera-roll: 0.0
         camera-shake: 0.0
@@ -34,6 +38,8 @@ scenes:
         yaw: 0.0
         pitch: 0.0
         animation: wave
+        camera-yaw: 8.0
+        camera-pitch: -3.0
         camera-fov: -8.0
       - tick: 60
         x: 0.0
@@ -42,6 +48,8 @@ scenes:
         yaw: 0.0
         pitch: 0.0
         animation: bow
+        camera-yaw: -6.0
+        camera-pitch: 8.0
         camera-fov: -12.0
       - tick: 80
         x: 0.0

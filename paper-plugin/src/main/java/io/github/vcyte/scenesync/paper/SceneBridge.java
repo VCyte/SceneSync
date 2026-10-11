@@ -79,6 +79,11 @@ final class SceneBridge implements PluginMessageListener {
         packet.addProperty("originY", origin.getY());
         packet.addProperty("originZ", origin.getZ());
         packet.addProperty("originYaw", origin.getYaw());
+        JsonObject camera = new JsonObject();
+        camera.addProperty("mode", scene.cameraSettings().mode().name());
+        camera.addProperty("maxYawDegrees", scene.cameraSettings().maxYawDegrees());
+        camera.addProperty("maxPitchDegrees", scene.cameraSettings().maxPitchDegrees());
+        packet.add("cameraControl", camera);
         JsonArray frames = new JsonArray();
         for (SceneFrame frame : scene.frames()) {
             JsonObject f = new JsonObject();

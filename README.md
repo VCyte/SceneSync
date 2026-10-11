@@ -37,7 +37,7 @@ The plugin has a `demo` scene in `paper-plugin/src/main/resources/config.yml`. O
 ## Design and safety
 
 - The server validates scene paths and collision safety; the actor mod sends normal movement packets from the timeline. Significant divergence or unsafe paths stop playback instead of causing a teleport-correction loop.
-- The actor client retains full look control; cinematic camera rotation and shake are disabled. Scenes may specify only a bounded, additive FOV offset (0 by default).
+- Each scene can preserve free look, smoothly lock to a keyframed action camera, or constrain mouse look to a forward cone (default limits: +/-80° yaw and +/-45° pitch). Camera yaw/pitch keyframes move the actor's view and authored head pose together; only the actor's camera is controlled, never viewers' cameras. Roll and shake are optional and tightly clamped; FOV is bounded and defaults to neutral.
 - Scene damage behavior is configurable per animation: the scene fallback is `CANCEL_SCENE` by default, and entries such as `wave: IGNORE_DAMAGE` can override individual animation IDs.
 - Network payloads are versioned, size-bounded, parsed with strict bounds, and rate-limited. Unsupported protocol versions are rejected.
 - Scene duration, frame count, coordinates, additive FOV offsets, and animation identifiers have explicit limits.
@@ -57,6 +57,6 @@ See `docs/PLUGIN-DEVELOPMENT.md` for the exact current API and limitations, incl
 
 ## Compatibility and roadmap
 
-Initial scope is player actors, keyframed client-driven normal movement packets with Paper path/collision validation, shared-time client render interpolation, synchronized built-in body poses, and look-preserving local FOV effects. This build has passed compilation and CI; a live in-game smoothness/compatibility acceptance test is still required. Arbitrary third-party animation packs, Forge/NeoForge, cross-version protocol negotiation, and robust compatibility patches for other animation mods require separate implementation and testing. SceneSync deliberately does not promise perfect compatibility with every rendering or server plugin stack.
+Initial scope is player actors, keyframed client-driven normal movement packets with Paper path/collision validation, shared-time client render interpolation, synchronized built-in body poses, configurable local camera behavior, and per-animation damage policy. This build has passed compilation and CI; a live in-game smoothness/compatibility acceptance test is still required. Arbitrary third-party animation packs, Forge/NeoForge, cross-version protocol negotiation, and robust compatibility patches for other animation mods require separate implementation and testing. SceneSync deliberately does not promise perfect compatibility with every rendering or server plugin stack.
 
 Report reproducible issues with the exact Minecraft, Paper, Fabric Loader/API, Java, and mod versions.

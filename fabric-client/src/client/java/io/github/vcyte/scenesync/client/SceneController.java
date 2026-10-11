@@ -69,8 +69,19 @@ public final class SceneController {
                 previous = tick;
             }
             if (frames.getFirst().tick() != 0) return false;
+            SceneTrack.CameraControl cameraControl = SceneTrack.CameraControl.DEFAULT;
+            if (json.has("cameraControl")) {
+                if (!json.get("cameraControl").isJsonObject()) return false;
+                JsonObject camera = json.getAsJsonObject("cameraControl");
+                String rawMode = string(camera, "mode", 16);
+                double maxYaw = decimal(camera, "maxYawDegrees", Double.NaN, 0, 100);
+                double maxPitch = decimal(camera, "maxPitchDegrees", Double.NaN, 0, 70);
+                if (rawMode == null || !Double.isFinite(maxYaw) || !Double.isFinite(maxPitch)) return false;
+                SceneTrack.CameraMode mode = SceneTrack.CameraMode.valueOf(rawMode);
+                cameraControl = new SceneTrack.CameraControl(mode, (float)maxYaw, (float)maxPitch);
+            }
             TRACKS.put(entityId, new SceneTrack(runId, entityId, duration, localStart,
-                    originX, originY, originZ, originYaw, List.copyOf(frames)));
+                    originX, originY, originZ, originYaw, cameraControl, List.copyOf(frames)));
             return true;
         } catch (RuntimeException ignored) { return false; }
     }

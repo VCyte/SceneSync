@@ -45,6 +45,18 @@ class SceneTrackTest {
         assertEquals(-3.125f, sample.cameraFov(), 1.0e-4f);
     }
 
+    @Test void preservesLimitedCameraControlInSample() {
+        SceneTrack track = new SceneTrack("run-4", 10, 20, 1_000,
+                0, 64, 0, 0, new SceneTrack.CameraControl(SceneTrack.CameraMode.LIMITED, 80, 45),
+                List.of(frame(0, 0, 0, 0, 0), frame(20, 0, 0, 2, 0)));
+
+        SceneTrack.Sample sample = track.sample(1_500);
+
+        assertEquals(SceneTrack.CameraMode.LIMITED, sample.cameraMode());
+        assertEquals(80.0f, sample.maxYawDegrees());
+        assertEquals(45.0f, sample.maxPitchDegrees());
+    }
+
     private static SceneTrack.Frame frame(int tick, double x, double y, double z, float yaw) {
         return new SceneTrack.Frame(tick, x, y, z, yaw, 0, "walk", 0, 0, 0, 0);
     }

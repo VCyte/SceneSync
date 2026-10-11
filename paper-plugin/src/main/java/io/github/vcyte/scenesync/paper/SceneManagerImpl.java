@@ -1,8 +1,10 @@
 package io.github.vcyte.scenesync.paper;
 
 import io.github.vcyte.scenesync.api.SceneDefinition;
+import io.github.vcyte.scenesync.api.CameraMode;
 import io.github.vcyte.scenesync.api.DamagePolicy;
 import io.github.vcyte.scenesync.api.SceneFrame;
+import io.github.vcyte.scenesync.api.SceneCameraSettings;
 import io.github.vcyte.scenesync.api.SceneManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -42,6 +44,15 @@ final class SceneManagerImpl implements SceneManager {
                         int duration = section.getInt("duration-ticks", -1);
                         String rawPolicy = section.getString("damage-policy", "CANCEL_SCENE");
                         DamagePolicy damagePolicy = DamagePolicy.valueOf(rawPolicy.trim().toUpperCase(Locale.ROOT));
+                        SceneCameraSettings cameraSettings = SceneCameraSettings.DEFAULT;
+                        var cameraSection = section.getConfigurationSection("camera");
+                        if (cameraSection != null) {
+                            String rawMode = cameraSection.getString("mode", "FREE_LOOK");
+                            CameraMode mode = CameraMode.valueOf(rawMode.trim().toUpperCase(Locale.ROOT));
+                            double maxYaw = cameraSection.getDouble("max-yaw-degrees", 80.0);
+                            double maxPitch = cameraSection.getDouble("max-pitch-degrees", 45.0);
+                            cameraSettings = new SceneCameraSettings(mode, (float)maxYaw, (float)maxPitch);
+                        }
                         Map<String, DamagePolicy> animationPolicies = new LinkedHashMap<>();
                         var animationPolicySection = section.getConfigurationSection("animation-damage-policies");
                         if (animationPolicySection != null) {
@@ -73,7 +84,7 @@ final class SceneManagerImpl implements SceneManager {
                             frames.add(new SceneFrame(tick, x, y, z, yaw, pitch, animation,
                                     cameraYaw, cameraPitch, cameraRoll, shake, cameraFov));
                         }
-                        candidate.put(id, new SceneDefinition(id, duration, frames, damagePolicy, animationPolicies));
+                        candidate.put(id, new SceneDefinition(id, duration, frames, damagePolicy, animationPolicies, cameraSettings));
                     } catch (RuntimeException e) {
                         plugin.getLogger().warning("Ignored invalid scene '" + id + "': " + e.getMessage());
                     }

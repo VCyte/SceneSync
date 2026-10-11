@@ -9,9 +9,18 @@ public final class ScenePose {
 
     public static void apply(HumanoidModel<?> model, SceneTrack.Sample sample) {
         float phase = sample.ticks() * 0.35f;
-        // Don't let the actor's live mouse aim make the head snap independently of the scene body.
-        model.head.yRot = 0.0f;
-        model.head.xRot = 0.0f;
+        // Keep head and scripted action-camera aim in sync. In free-look mode the scene pose owns
+        // the head so unrelated mouse movement cannot make it snap independently of the body.
+        float headYaw = sample.cameraMode() == SceneTrack.CameraMode.LIMITED
+                ? Math.max(-sample.maxYawDegrees(), Math.min(sample.maxYawDegrees(), sample.cameraYaw()))
+                : sample.cameraYaw();
+        float headPitch = sample.cameraMode() == SceneTrack.CameraMode.LIMITED
+                ? Math.max(-sample.maxPitchDegrees(), Math.min(sample.maxPitchDegrees(), sample.cameraPitch()))
+                : sample.cameraPitch();
+        model.head.yRot = sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK ? 0.0f
+                : (float)Math.toRadians(Math.max(-70.0f, Math.min(70.0f, headYaw)));
+        model.head.xRot = sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK ? 0.0f
+                : (float)Math.toRadians(Math.max(-55.0f, Math.min(55.0f, headPitch)));
         switch (sample.animation()) {
             case "wave" -> {
                 model.rightArm.xRot = -1.55f + (float)Math.sin(phase * 2.0f) * 0.42f;

@@ -9,7 +9,8 @@ SceneSync uses Paper plugin messaging and matching Fabric custom payload codecs.
 - JSON structural nesting: at most 16 levels on clients; handshake parser uses a stricter limit.
 - Scene frames: 1..128; total duration: 1..24,000 ticks.
 - Relative axis offsets: -128..128 blocks; yaw: +/-360 degrees; pitch: +/-90 degrees.
-- Legacy camera yaw/pitch/roll and shake fields: accepted but ignored. `cameraFov`: +/-25 degrees, additively applied and clamped to 30..110 degrees.
+- Camera mode: `FREE_LOOK`, `LOCKED`, or `LIMITED`; yaw cone 0..100 degrees and pitch cone 0..70 degrees. Omitted camera settings default to `FREE_LOOK`.
+- Frame camera yaw/pitch: actor-relative offsets in -45..45 degrees; roll is applied at at most +/-6 degrees and shake at at most 1 degree. `cameraFov`: +/-25 degrees, additively applied and clamped to 30..110 degrees.
 - Client inbound protocol work: at most 64 packets per 10 seconds per connection.
 
 ## Handshake
@@ -30,7 +31,7 @@ The client estimates clock offset from the round trip for a shared start time. T
 
 ## Play packet
 
-`scenesync:play` includes `protocol`, `session`, `runId`, `entityId`, `scene`, `durationTicks`, `startAtMillis`, the actor origin (`originX`, `originY`, `originZ`, `originYaw`), and `frames`. Each frame contains tick, actor-local x/y/z, yaw/pitch offsets, a built-in animation ID, legacy camera rotation/shake fields (ignored), and optional `cameraFov` (degrees, +/-25). The actor client sends normal movement packets at the shared timeline position; Paper checks that the movement stays on the scene path and stops playback on significant divergence or unsafe conditions. Compatible viewers render from the same synchronized start time. The actor's own camera follows its locally interpolated position, keeps the player's look direction, and may apply only the bounded FOV offset. The protocol never forces camera yaw/pitch/roll.
+`scenesync:play` includes `protocol`, `session`, `runId`, `entityId`, `scene`, `durationTicks`, `startAtMillis`, the actor origin (`originX`, `originY`, `originZ`, `originYaw`), `cameraControl`, and `frames`. `cameraControl` contains the scene mode and look-cone limits. Each frame contains tick, actor-local x/y/z, yaw/pitch offsets, a built-in animation ID, actor-relative camera yaw/pitch/roll/shake offsets, and optional `cameraFov` (degrees, +/-25). In `FREE_LOOK`, keyframed camera rotation is ignored. In `LOCKED`, only the actor camera follows the interpolated authored yaw/pitch after a short eased entry. In `LIMITED`, the actor can still use the mouse inside the configured forward cone. The controlled actor's head follows authored camera aim; viewer cameras are never changed. The actor client sends normal movement packets at the shared timeline position; Paper checks that the movement stays on the scene path and stops playback on significant divergence or unsafe conditions. Compatible viewers render from the same synchronized start time.
 
 ## Stop packet
 
