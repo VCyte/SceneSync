@@ -9,6 +9,9 @@ public final class ScenePose {
     private ScenePose() { }
 
     public static void apply(HumanoidModel<?> model, SceneTrack.Sample sample) {
+        float vanillaHeadPitch = model.head.xRot;
+        float vanillaHeadYaw = model.head.yRot;
+        float vanillaHeadRoll = model.head.zRot;
         float envelope = clamp(sample.sceneBlend(), 0.0f, 1.0f);
         if (sample.pose() != null) applyPose(model, sample.pose(), envelope);
 
@@ -22,6 +25,11 @@ public final class ScenePose {
         // Vanilla setupAnim has already produced the base pose. Script transforms are overlays,
         // then the action camera adds only its own head aim; each weight returns to that base pose.
         applyCameraAim(model, sample, envelope);
+        // A plugin head pose and the action-camera offset are both overlays. Clamp their sum,
+        // rather than each independently, so they cannot combine into a neck flip.
+        model.head.xRot = HeadPoseMath.clampOverlay(vanillaHeadPitch, model.head.xRot, HeadPoseMath.MAX_PITCH_RADIANS);
+        model.head.yRot = HeadPoseMath.clampOverlay(vanillaHeadYaw, model.head.yRot, HeadPoseMath.MAX_YAW_RADIANS);
+        model.head.zRot = HeadPoseMath.clampOverlay(vanillaHeadRoll, model.head.zRot, HeadPoseMath.MAX_ROLL_RADIANS);
     }
 
     private static void applyLegacyPose(HumanoidModel<?> model, String animation, float ticks, float weight) {

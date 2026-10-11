@@ -4,12 +4,12 @@
 
 ```gradle
 dependencies {
-    compileOnly files('libs/scenesync-api-0.1.1.jar')
+    compileOnly files('libs/scenesync-api-0.1.2.jar')
     compileOnly 'io.papermc.paper:paper-api:26.2.build.124-stable'
 }
 ```
 
-Download `scenesync-api-0.1.1.jar` from the matching SceneSync GitHub Release into your plugin project's `libs/` directory. For a local multi-project build, use `implementation project(':scenesync-api')`.
+Download `scenesync-api-0.1.2.jar` from the matching SceneSync GitHub Release into your plugin project's `libs/` directory. For a local multi-project build, use `implementation project(':scenesync-api')`.
 
 ## Register and play a scene
 
@@ -84,9 +84,9 @@ sceneManager.register(scene);
 sceneManager.play(player, scene.id());
 ```
 
-Translations are bounded model-pixel offsets (each axis +/-8); rotations are degrees (+/-180). The client eases pose transitions, interpolates shortest-path Euler rotations, and returns to the current vanilla pose on scene end; an early STOP fades visuals over 200 ms while movement/input control ends immediately. The six vanilla humanoid parts are head, body, arms and legs; their vanilla armor models and arm-attached held items inherit the transforms. This is a generic humanoid rig, not arbitrary mesh/bone/texture loading. Built-in convenience IDs (`idle`, `walk`, `run`, `wave`, `bow`, `spin`, `clap`, `sit`) remain optional legacy poses; new plugin motions should use namespaced IDs and provide pose data.
+Translations are bounded model-pixel offsets (each axis +/-8); rotations are degrees (+/-180). The client eases pose transitions, interpolates shortest-path Euler rotations, and returns to the current vanilla pose on scene end; an early STOP fades visuals over 200 ms while movement/input control ends immediately. Head overlays are additionally clamped after combining the animation and action-camera offsets (55° pitch, 65° yaw, 35° roll) relative to the vanilla look pose; oversized head keyframes are therefore safely limited at render time. The six vanilla humanoid parts are head, body, arms and legs; their vanilla armor models and arm-attached held items inherit the transforms. This is a generic humanoid rig, not arbitrary mesh/bone/texture loading. Built-in convenience IDs (`idle`, `walk`, `run`, `wave`, `bow`, `spin`, `clap`, `sit`) remain optional legacy poses; new plugin motions should use namespaced IDs and provide pose data.
 
-The Thunderclap sample is available as `/scenesync play thunderclap-flash [player]`: it charges for 16 ticks, then moves 24 blocks over 6 ticks (4 blocks per server tick at peak), holds a finishing pose, and eases camera/FOV accents around the dash. Its charge/dash/finish transforms use `scenesync:...` IDs and generic pose payloads—not client-side lightning code. It uses `LOCKED` camera control and is cancelled by damage. Its rapid path is checked at <=0.25-block intervals, including player-width and sub-tick curve samples; client movement is matched against fractional points on the bounded-latency path. This is a visual scripted move, not a damage/hitbox/combat system.
+The Thunderclap sample is available as `/scenesync play thunderclap-flash [player]`: it charges for 16 ticks, then moves 24 blocks over 6 ticks (4 blocks per server tick at peak), holds a finishing pose, and eases camera/FOV accents around the dash. Its charge/dash/finish transforms use `scenesync:...` IDs and generic pose payloads—not client-side lightning code. It uses `LOCKED` camera control and is cancelled by damage. Paper preflights the full actor-specific curve, including body-width and sub-tick collision samples, before sending it. If a wall intersects the path, clients receive a shortened safe track with a brace/recovery pose; path packets are matched to the shared curve rather than compared to lag-dependent straight-line movement deltas. This is a visual scripted move, not a damage/hitbox/combat system.
 
 In `FREE_LOOK`, head direction remains locked to the scene pose rather than live mouse aim; in camera-controlled modes, authored camera yaw/pitch offsets also turn the head when using legacy poses. `camera-fov` is an additive degree offset, bounded to +/-25 and clamped to 30..110; it defaults to 0. Camera yaw/pitch/roll/shake keyframes affect the actor's view only in `LOCKED` or `LIMITED` mode, with roll/shake comfort clamps.
 

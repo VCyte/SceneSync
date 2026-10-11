@@ -155,8 +155,11 @@ final class SceneManagerImpl implements SceneManager {
                 || actor.getGameMode() == org.bukkit.GameMode.SPECTATOR || !bridge.isCompatible(actor)
                 || active.size() >= 128) return false;
         stop(actor);
+        Location origin = actor.getLocation().clone();
+        SceneDefinition planned = planCollisionSafePath(scene, origin);
+        if (planned == null) return false;
         ActiveScene run = new ActiveScene(UUID.randomUUID().toString().replace("-", ""), actor,
-                scene, actor.getLocation().clone(), System.currentTimeMillis() + 500);
+                planned, origin, System.currentTimeMillis() + 500);
         active.put(actor.getUniqueId(), run);
         broadcastStart(run);
         return true;
@@ -165,7 +168,7 @@ final class SceneManagerImpl implements SceneManager {
     private void broadcastStart(ActiveScene run) {
         for (Player viewer : run.actor.getWorld().getPlayers()) {
             if (viewer.getLocation().distanceSquared(run.origin) <= viewDistance * viewDistance && bridge.isCompatible(viewer)) {
-                bridge.sendPlay(viewer, run.actor, run.runId, run.startAtMillis, run.definition);
+                bridge.sendPlay(viewer, run.actor, run.runId, run.startAtMillis, run.definition, run.origin);
                 run.viewers.add(viewer.getUniqueId());
             }
         }
@@ -205,6 +208,44 @@ final class SceneManagerImpl implements SceneManager {
         }
     }
 
+    /** Test the whole deterministic route before clients begin moving, then publish a safe stop track. */
+    private SceneDefinition planCollisionSafePath(SceneDefinition definition, Location origin) {
+        double firstBlockedTick = firstBlockedTick(definition, origin);
+        if (Double.isNaN(firstBlockedTick)) return definition;
+        List<SceneFrame> frames = definition.frames();
+        for (int i = frames.size() - 1; i >= 0; i--) {
+            int stopTick = frames.get(i).tick();
+            if (stopTick >= firstBlockedTick) continue;
+            ScenePathMath.Point stopPoint = ScenePathMath.sample(frames, stopTick);
+            SceneDefinition clipped = ScenePathPlanner.stopAndBrace(definition, stopTick, stopPoint);
+            if (!Double.isNaN(firstBlockedTick(clipped, origin))) continue;
+            plugin.getLogger().info("Scene '" + definition.id() + "' meets an obstruction in world '"
+                    + origin.getWorld().getName() + "'; playback will brace at tick " + stopTick + " instead of entering it.");
+            return clipped;
+        }
+        return null;
+    }
+
+    /** Returns the first blocked fractional tick, or NaN when the complete path is safe. */
+    private double firstBlockedTick(SceneDefinition definition, Location origin) {
+        ActiveScene probe = new ActiveScene("path-plan", null, definition, origin, 0L);
+        List<SceneFrame> frames = definition.frames();
+        Location previous = locationAt(probe, frames.getFirst().tick());
+        if (previous == null || !sweptSafe(previous, previous)) return 0.0;
+        for (int segment = 0; segment < frames.size() - 1; segment++) {
+            SceneFrame a = frames.get(segment), b = frames.get(segment + 1);
+            double travelBound = Math.abs(b.x() - a.x()) + Math.abs(b.y() - a.y()) + Math.abs(b.z() - a.z());
+            int steps = Math.max(1, (int)Math.ceil(travelBound / 0.125));
+            for (int step = 1; step <= steps; step++) {
+                double tick = a.tick() + (b.tick() - a.tick()) * (step / (double)steps);
+                Location next = locationAt(probe, tick);
+                if (next == null || !sweptSafe(previous, next)) return tick;
+                previous = next;
+            }
+        }
+        return Double.NaN;
+    }
+
     boolean acceptClientMovement(Player actor, Location from, Location to) {
         ActiveScene run = active.get(actor.getUniqueId());
         if (run == null || to == null || !Bukkit.isPrimaryThread()) return true;
@@ -221,14 +262,9 @@ final class SceneManagerImpl implements SceneManager {
         double lastTick = Math.min(run.definition.durationTicks(), currentTick + 1.0);
         if (ScenePathMath.matches(run.definition.frames(), firstTick, lastTick,
                 run.origin.getX(), run.origin.getY(), run.origin.getZ(), run.origin.getYaw(),
-                to.getX(), to.getY(), to.getZ(), 0.75)) {
-            if (from != null && !sweptSafe(from, to)) {
-                stopInternal(run);
-                return false;
-            }
-            return true;
-        }
-        // A collision, competing movement plugin, or client desync must not trigger a correction loop.
+                to.getX(), to.getY(), to.getZ(), 0.75)) return true;
+        // Competing movement plugins or client desync end the track without cancelling the packet
+        // back to a stale position; the preflighted scene curve itself is checked separately.
         stopInternal(run);
         return true;
     }
@@ -253,7 +289,7 @@ final class SceneManagerImpl implements SceneManager {
         for (Player viewer : run.actor.getWorld().getPlayers()) {
             if (run.viewers.contains(viewer.getUniqueId()) || !bridge.isCompatible(viewer)) continue;
             if (viewer.getLocation().distanceSquared(run.actor.getLocation()) <= viewDistance * viewDistance) {
-                bridge.sendPlay(viewer, run.actor, run.runId, run.startAtMillis, run.definition);
+                bridge.sendPlay(viewer, run.actor, run.runId, run.startAtMillis, run.definition, run.origin);
                 run.viewers.add(viewer.getUniqueId());
             }
         }

@@ -65,7 +65,8 @@ final class SceneBridge implements PluginMessageListener {
     boolean isCompatible(Player player) { return sessions.containsKey(player.getUniqueId()); }
     void remove(Player player) { sessions.remove(player.getUniqueId()); helloWindows.remove(player.getUniqueId()); }
 
-    void sendPlay(Player viewer, Player actor, String runId, long startAtMillis, SceneDefinition scene) {
+    void sendPlay(Player viewer, Player actor, String runId, long startAtMillis, SceneDefinition scene,
+                  org.bukkit.Location origin) {
         Session session = sessions.get(viewer.getUniqueId());
         if (session == null) return;
         JsonObject packet = new JsonObject();
@@ -76,7 +77,6 @@ final class SceneBridge implements PluginMessageListener {
         packet.addProperty("scene", scene.id());
         packet.addProperty("durationTicks", scene.durationTicks());
         packet.addProperty("startAtMillis", startAtMillis);
-        var origin = actor.getLocation();
         packet.addProperty("originX", origin.getX());
         packet.addProperty("originY", origin.getY());
         packet.addProperty("originZ", origin.getZ());
