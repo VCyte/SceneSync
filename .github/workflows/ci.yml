@@ -23,15 +23,15 @@ jobs:
         run: echo "VERSION=$(./gradlew -q properties | awk '$1=="version:" {print $2}')" >> "$GITHUB_ENV"
       - name: Verify distributable jars
         run: |
-          test -s paper-plugin/build/libs/SceneSync-Paper-${VERSION}.jar
-          test -s fabric-client/build/libs/scenesync-client-26.2-${VERSION}.jar
-          test -s scenesync-api/build/libs/scenesync-api-${VERSION}.jar
+          test -s paper-plugin/build/libs/SceneSync-Paper-${{ env.VERSION }}.jar
+          test -s fabric-client/build/libs/scenesync-client-26.2-${{ env.VERSION }}.jar
+          test -s scenesync-api/build/libs/scenesync-api-${{ env.VERSION }}.jar
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: scenesync-development-build
           path: |
-            paper-plugin/build/libs/SceneSync-Paper-${VERSION}.jar
-            fabric-client/build/libs/scenesync-client-26.2-${VERSION}.jar
-            scenesync-api/build/libs/scenesync-api-${VERSION}.jar
+            paper-plugin/build/libs/SceneSync-Paper-${{ env.VERSION }}.jar
+            fabric-client/build/libs/scenesync-client-26.2-${{ env.VERSION }}.jar
+            scenesync-api/build/libs/scenesync-api-${{ env.VERSION }}.jar
           if-no-files-found: error
           retention-days: 14
