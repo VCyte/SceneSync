@@ -75,8 +75,11 @@ public abstract class CameraMixin {
 
             if (sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK
                     && !Minecraft.getInstance().options.getCameraType().isFirstPerson()) {
-                SceneController.beginDetachedLook(cameraEntity.getId(), ((Camera)(Object)this).yRot(),
-                        ((Camera)(Object)this).xRot());
+                boolean mirrored = Minecraft.getInstance().options.getCameraType().isMirrored();
+                float logicalYaw = mirrored ? wrapDegrees(((Camera)(Object)this).yRot() + 180.0f)
+                        : ((Camera)(Object)this).yRot();
+                float logicalPitch = mirrored ? -((Camera)(Object)this).xRot() : ((Camera)(Object)this).xRot();
+                SceneController.beginDetachedLook(cameraEntity.getId(), logicalYaw, logicalPitch);
                 SceneController.Look look = SceneController.detachedLook(cameraEntity.getId());
                 if (look != null) applyDetachedCamera(localPlayer, sample, tracker, look.yaw(), look.pitch());
                 scenesync$wasLocked = false;
@@ -165,8 +168,8 @@ public abstract class CameraMixin {
         Vec3 offset = ((Camera)(Object)this).position().subtract(pivot);
         double distance = Math.max(0.05, offset.length());
         Vec3 forward = Vec3.directionFromRotation(pitch, yaw);
-        setPosition(pivot.subtract(forward.scale(distance)));
         boolean mirrored = Minecraft.getInstance().options.getCameraType().isMirrored();
+        setPosition(mirrored ? pivot.add(forward.scale(distance)) : pivot.subtract(forward.scale(distance)));
         SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(yaw, pitch, mirrored);
         setRotation(cameraLook.yaw(), cameraLook.pitch());
     }
