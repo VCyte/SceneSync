@@ -36,12 +36,12 @@ Frame positions are **offsets in blocks from the actor's starting position, in t
 
 ## Damage policy
 
-Each scene selects one `DamagePolicy`; the default for both YAML and the backwards-compatible API constructor is `CANCEL_SCENE`:
+Each scene selects a fallback `DamagePolicy`; the default for both YAML and the backwards-compatible API constructor is `CANCEL_SCENE`. Optional per-animation overrides take precedence while that animation is active:
 
 - `CANCEL_SCENE`: on positive final damage, SceneSync sends the stop signal first, then allows normal Minecraft damage and its hurt animation to occur.
 - `IGNORE_DAMAGE`: SceneSync cancels the damage event and leaves the scene running. Because damage is cancelled server-side, the actor does not lose health or receive the corresponding hurt reaction/knockback.
 
-For YAML, set `damage-policy: CANCEL_SCENE` or `damage-policy: IGNORE_DAMAGE` under the scene. For API-created scenes, pass `DamagePolicy.CANCEL_SCENE` or `DamagePolicy.IGNORE_DAMAGE` to the four-argument `SceneDefinition` constructor. Other plugins' already-cancelled damage events are left alone and do not stop the scene.
+For YAML, set the fallback `damage-policy`, then optionally map animation IDs under `animation-damage-policies` (for example, `wave: IGNORE_DAMAGE`). Keys must be animations used by that scene; unlisted animations inherit the fallback. The policy switches at the same keyframe boundary as the animation. For API-created scenes, use the five-argument `SceneDefinition(id, duration, frames, fallbackPolicy, animationPolicyMap)` constructor; the three- and four-argument constructors remain and default to no per-animation overrides. Other plugins' already-cancelled damage events are left alone and do not stop the scene.
 
 Built-in pose IDs in this preview are `idle`, `walk`, `run`, `wave`, `bow`, `spin`, `clap`, and `sit`. `idle` and `walk` retain vanilla locomotion; several other poses adjust humanoid body/limb model parts. The shared `HumanoidModel` hook applies the same pose to player, vanilla armor, and arm-attached held-item rendering. Head direction is locked to the scene pose, not mouse aim. `bow` is a brief body-bow gesture, not a weapon-draw animation. `camera-fov` is an additive degree offset, bounded to +/-25 and clamped to 30..110; it defaults to 0. Legacy camera yaw/pitch/roll/shake inputs are accepted for compatibility but ignored, preserving the player's own look direction.
 

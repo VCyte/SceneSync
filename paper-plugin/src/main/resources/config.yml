@@ -3,6 +3,9 @@ scenes:
   demo:
     duration-ticks: 80
     damage-policy: CANCEL_SCENE # or IGNORE_DAMAGE to cancel hits and keep the scene playing
+    animation-damage-policies:
+      wave: IGNORE_DAMAGE
+      bow: CANCEL_SCENE
     frames:
       - tick: 0
         x: 0.0

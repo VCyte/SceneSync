@@ -42,6 +42,18 @@ final class SceneManagerImpl implements SceneManager {
                         int duration = section.getInt("duration-ticks", -1);
                         String rawPolicy = section.getString("damage-policy", "CANCEL_SCENE");
                         DamagePolicy damagePolicy = DamagePolicy.valueOf(rawPolicy.trim().toUpperCase(Locale.ROOT));
+                        Map<String, DamagePolicy> animationPolicies = new LinkedHashMap<>();
+                        var animationPolicySection = section.getConfigurationSection("animation-damage-policies");
+                        if (animationPolicySection != null) {
+                            if (animationPolicySection.getKeys(false).size() > SceneFrame.SUPPORTED_ANIMATIONS.size())
+                                throw new IllegalArgumentException("too many animation damage policies");
+                            for (String animation : animationPolicySection.getKeys(false)) {
+                                String policyName = animationPolicySection.getString(animation);
+                                if (policyName == null) throw new IllegalArgumentException("animation damage policy must be text");
+                                animationPolicies.put(animation,
+                                        DamagePolicy.valueOf(policyName.trim().toUpperCase(Locale.ROOT)));
+                            }
+                        }
                         var rawFrames = section.getMapList("frames");
                         List<SceneFrame> frames = new ArrayList<>();
                         if (rawFrames.size() > SceneDefinition.MAX_FRAMES) throw new IllegalArgumentException("too many frames");
@@ -61,7 +73,7 @@ final class SceneManagerImpl implements SceneManager {
                             frames.add(new SceneFrame(tick, x, y, z, yaw, pitch, animation,
                                     cameraYaw, cameraPitch, cameraRoll, shake, cameraFov));
                         }
-                        candidate.put(id, new SceneDefinition(id, duration, frames, damagePolicy));
+                        candidate.put(id, new SceneDefinition(id, duration, frames, damagePolicy, animationPolicies));
                     } catch (RuntimeException e) {
                         plugin.getLogger().warning("Ignored invalid scene '" + id + "': " + e.getMessage());
                     }
@@ -167,7 +179,11 @@ final class SceneManagerImpl implements SceneManager {
         requireMainThread();
         ActiveScene run = active.get(actor.getUniqueId());
         if (run == null || event.getFinalDamage() <= 0.0) return;
-        if (run.definition.damagePolicy() == DamagePolicy.IGNORE_DAMAGE) {
+        long now = System.currentTimeMillis();
+        int sceneTick = now <= run.startAtMillis ? 0
+                : (int)Math.min(run.definition.durationTicks(), (now - run.startAtMillis) / 50L);
+        DamagePolicy policy = run.definition.damagePolicyAtTick(sceneTick);
+        if (policy == DamagePolicy.IGNORE_DAMAGE) {
             event.setCancelled(true);
         } else {
             // Clear the scene track before the normal damage/hurt packets are sent.

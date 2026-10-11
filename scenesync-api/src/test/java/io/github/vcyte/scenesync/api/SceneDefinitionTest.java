@@ -3,6 +3,7 @@ package io.github.vcyte.scenesync.api;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -21,6 +22,19 @@ class SceneDefinitionTest {
         assertEquals(DamagePolicy.CANCEL_SCENE, new SceneDefinition("intro", 40, List.of(frame(0))).damagePolicy());
         assertEquals(DamagePolicy.IGNORE_DAMAGE,
                 new SceneDefinition("intro", 40, List.of(frame(0)), DamagePolicy.IGNORE_DAMAGE).damagePolicy());
+    }
+    @Test void choosesDamagePolicyForAnimationActiveAtHitTick() {
+        var wave = new SceneFrame(20, 0, 0, 0, 0, 0, "wave", 0, 0, 0, 0);
+        var scene = new SceneDefinition("intro", 40, List.of(frame(0), wave), DamagePolicy.CANCEL_SCENE,
+                Map.of("wave", DamagePolicy.IGNORE_DAMAGE));
+
+        assertEquals(DamagePolicy.CANCEL_SCENE, scene.damagePolicyAtTick(19));
+        assertEquals(DamagePolicy.IGNORE_DAMAGE, scene.damagePolicyAtTick(20));
+        assertEquals(DamagePolicy.IGNORE_DAMAGE, scene.damagePolicyAtTick(39));
+    }
+    @Test void rejectsDamageOverridesForUnusedAnimations() {
+        assertThrows(IllegalArgumentException.class, () -> new SceneDefinition("intro", 40, List.of(frame(0)),
+                DamagePolicy.CANCEL_SCENE, Map.of("wave", DamagePolicy.IGNORE_DAMAGE)));
     }
     @Test void rejectsNonzeroInitialFrame() {
         assertThrows(IllegalArgumentException.class, () -> new SceneDefinition("intro", 40, List.of(frame(1))));
