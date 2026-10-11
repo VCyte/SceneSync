@@ -43,11 +43,15 @@ public abstract class AvatarRendererMixin {
         // Do not interpolate across a server teleport or world change.
         if (dx * dx + dy * dy + dz * dz > 9.0) return;
         float weight = fade.rootWeight();
+        float vanillaBodyYaw = state.bodyRot;
+        float vanillaHeadRelativeYaw = state.yRot;
+        float targetHeadRelativeYaw = last.cameraMode() == SceneTrack.CameraMode.FREE_LOOK
+                ? wrapDegrees(vanillaBodyYaw + vanillaHeadRelativeYaw - last.yaw()) : 0.0f;
         state.x += dx * weight;
         state.y += dy * weight;
         state.z += dz * weight;
-        state.yRot = lerpAngle(state.yRot, last.yaw(), weight);
         state.bodyRot = lerpAngle(state.bodyRot, last.yaw(), weight);
+        state.yRot = lerpAngle(state.yRot, targetHeadRelativeYaw, weight);
         state.xRot += (last.pitch() - state.xRot) * weight;
     }
 
