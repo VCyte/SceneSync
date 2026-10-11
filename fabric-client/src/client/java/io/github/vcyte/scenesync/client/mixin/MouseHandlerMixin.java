@@ -2,8 +2,10 @@ package io.github.vcyte.scenesync.client.mixin;
 
 import io.github.vcyte.scenesync.client.SceneController;
 import io.github.vcyte.scenesync.client.SceneTrack;
+import com.mojang.blaze3d.Blaze3D;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
+import net.minecraft.util.SmoothDouble;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -15,6 +17,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MouseHandlerMixin {
     @Shadow private double accumulatedDX;
     @Shadow private double accumulatedDY;
+    @Shadow private double lastHandleMovementTime;
+    @Shadow @org.spongepowered.asm.mixin.Final private SmoothDouble smoothTurnX;
+    @Shadow @org.spongepowered.asm.mixin.Final private SmoothDouble smoothTurnY;
 
     @Inject(method = "handleAccumulatedMovement()V", at = @At("HEAD"), cancellable = true)
     private void scenesync$handleSceneLook(CallbackInfo ci) {
@@ -53,12 +58,30 @@ public abstract class MouseHandlerMixin {
         }
     }
 
-    /** Same sensitivity/inversion formula as MouseHandler.turnPlayer in Minecraft 26.2. */
+    /** Exact MouseHandler.turnPlayer calculation from Minecraft 26.2. */
     private double[] scenesync$vanillaDelta(Minecraft minecraft) {
-        double sensitivity = minecraft.options.sensitivity().get();
-        double scale = Math.pow(sensitivity * 0.6 + 0.2, 3.0) * 8.0;
-        double yaw = accumulatedDX * scale;
-        double pitch = accumulatedDY * scale;
+        double now = Blaze3D.getTime();
+        double frameDelta = now - lastHandleMovementTime;
+        lastHandleMovementTime = now;
+        double sensitivity = minecraft.options.sensitivity().get() * 0.6 + 0.2;
+        double cubic = sensitivity * sensitivity * sensitivity;
+        double scaled = cubic * 8.0;
+        double yaw;
+        double pitch;
+        if (minecraft.options.smoothCamera) {
+            yaw = smoothTurnX.getNewDeltaValue(accumulatedDX * scaled, frameDelta * scaled);
+            pitch = smoothTurnY.getNewDeltaValue(accumulatedDY * scaled, frameDelta * scaled);
+        } else if (minecraft.options.getCameraType().isFirstPerson() && minecraft.player.isScoping()) {
+            smoothTurnX.reset();
+            smoothTurnY.reset();
+            yaw = accumulatedDX * cubic;
+            pitch = accumulatedDY * cubic;
+        } else {
+            smoothTurnX.reset();
+            smoothTurnY.reset();
+            yaw = accumulatedDX * scaled;
+            pitch = accumulatedDY * scaled;
+        }
         if ((Boolean)minecraft.options.invertMouseX().get()) yaw = -yaw;
         if ((Boolean)minecraft.options.invertMouseY().get()) pitch = -pitch;
         return new double[] { yaw, pitch };
