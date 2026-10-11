@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "scenesync",
+  "version": "${version}",
+  "name": "SceneSync",
+  "description": "Client rendering for server-authored synchronized Minecraft scenes.",
+  "authors": ["Vcyte"],
+  "license": "MIT",
+  "environment": "client",
+  "mixins": ["scenesync.client.mixins.json"],
+  "entrypoints": {
+    "client": ["io.github.vcyte.scenesync.client.SceneSyncClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "~26.2",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}

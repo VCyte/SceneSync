@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "io.github.vcyte.scenesync.client.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "CameraAccessor",
+    "PlayerModelMixin",
+    "CameraMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

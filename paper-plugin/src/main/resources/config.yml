@@ -1,0 +1,63 @@
+protocol: 1
+max-view-distance: 64.0
+# Set true only if controlled actors should retain normal movement input during playback.
+allow-player-input: false
+scenes:
+  demo:
+    duration-ticks: 80
+    frames:
+      - tick: 0
+        x: 0.0
+        y: 0.0
+        z: 0.0
+        yaw: 0.0
+        pitch: 0.0
+        animation: idle
+        camera-yaw: 0.0
+        camera-pitch: 0.0
+        camera-roll: 0.0
+        camera-shake: 0.0
+      - tick: 20
+        x: 0.0
+        y: 0.0
+        z: 1.5
+        yaw: 0.0
+        pitch: 0.0
+        animation: walk
+        camera-yaw: 0.0
+        camera-pitch: 0.0
+        camera-roll: 0.0
+        camera-shake: 0.0
+      - tick: 40
+        x: 0.0
+        y: 0.0
+        z: 3.0
+        yaw: 0.0
+        pitch: 0.0
+        animation: wave
+        camera-yaw: 0.0
+        camera-pitch: 0.0
+        camera-roll: 0.0
+        camera-shake: 0.0
+      - tick: 60
+        x: 0.0
+        y: 0.0
+        z: 4.5
+        yaw: 0.0
+        pitch: 0.0
+        animation: bow
+        camera-yaw: 0.0
+        camera-pitch: 0.0
+        camera-roll: 0.0
+        camera-shake: 0.0
+      - tick: 80
+        x: 0.0
+        y: 0.0
+        z: 4.5
+        yaw: 0.0
+        pitch: 0.0
+        animation: idle
+        camera-yaw: 0.0
+        camera-pitch: 0.0
+        camera-roll: 0.0
+        camera-shake: 0.0

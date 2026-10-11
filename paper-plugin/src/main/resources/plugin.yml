@@ -1,0 +1,18 @@
+name: SceneSync
+version: '${version}'
+main: io.github.vcyte.scenesync.paper.SceneSyncPlugin
+api-version: '26.2'
+author: Vcyte
+description: Server-authored synchronized cinematic scenes for modded clients.
+commands:
+  scenesync:
+    description: Manage server-authored scenes.
+    usage: /scenesync <list|play|stop|status|reload>
+    permission: scenesync.use
+permissions:
+  scenesync.use:
+    description: Allows viewing available scenes and own playback status.
+    default: true
+  scenesync.admin:
+    description: Allows starting, stopping, and reloading scenes.
+    default: op

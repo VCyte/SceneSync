@@ -1,0 +1,29 @@
+name: Publish release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and test
+        run: ./gradlew --no-daemon clean test build
+      - name: Assemble release assets
+        run: |
+          mkdir -p dist
+          cp paper-plugin/build/libs/SceneSync-Paper-0.1.0.jar dist/
+          cp fabric-client/build/libs/scenesync-client-26.2-0.1.0.jar dist/
+          cp scenesync-api/build/libs/scenesync-api-0.1.0.jar dist/
+          (cd dist && sha256sum *.jar > SHA256SUMS)
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "SceneSync $GITHUB_REF_NAME" --notes-file RELEASE-NOTES.md

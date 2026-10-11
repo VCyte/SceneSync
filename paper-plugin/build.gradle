@@ -1,0 +1,30 @@
+plugins {
+    id 'java-library'
+    id 'com.gradleup.shadow'
+}
+
+base { archivesName = 'SceneSync-Paper' }
+dependencies {
+    implementation project(':scenesync-api')
+    compileOnly 'io.papermc.paper:paper-api:26.2.build.124-stable'
+    implementation 'com.google.code.gson:gson:2.13.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.12.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.12.2'
+}
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(25) }
+    withSourcesJar()
+}
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = 'UTF-8'
+}
+tasks.named('processResources') {
+    filesMatching('plugin.yml') { expand(version: project.version) }
+}
+tasks.named('shadowJar') {
+    archiveClassifier = ''
+    relocate 'com.google.gson', 'io.github.vcyte.scenesync.libs.gson'
+}
+tasks.named('build') { dependsOn tasks.named('shadowJar') }
+tasks.named('test') { useJUnitPlatform() }
