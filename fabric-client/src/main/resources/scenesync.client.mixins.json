@@ -4,6 +4,7 @@
   "compatibilityLevel": "JAVA_25",
   "client": [
     "CameraAccessor",
+    "ClientInputAccessor",
     "KeyboardInputMixin",
     "LocalPlayerSceneMixin",
     "HumanoidModelMixin",
