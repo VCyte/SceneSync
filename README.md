@@ -32,7 +32,8 @@ Artifacts are written to:
 2. Install the matching protocol-v3 Fabric client mod on every player who should act in scenes or see SceneSync visuals.
 3. Restart the server and client, then use `/scenesync help`.
 
-The plugin has a `demo` scene and a `thunderclap-flash` example in `paper-plugin/src/main/resources/config.yml`. Start it with `/scenesync play thunderclap-flash [player]`; only operators can start or stop scenes by default. Charge, dash and finish poses are supplied as YAML bone keyframes under namespaced animation labels, demonstrating that these motions are not compiled into the mod. The example locks the actor's view, dashes 24 blocks over 6 ticks and then holds the finishing pose. If you already have `plugins/SceneSync/config.yml`, add/copy the new scene there before `/scenesync reload`—existing configs are not overwritten.
+already have `plugins/SceneSync/config.yml`, add/copy the new scene there before `/scenesync reload`—existing configs are not overwritten.
+The plugin has a `demo` scene and a `thunderclap-flash` example in `paper-plugin/src/main/resources/config.yml`. Start it with `/scenesync play thunderclap-flash [player]`; only operators can start or stop scenes by default. Charge, dash and finish poses are supplied as YAML bone keyframes under namespaced animation labels, demonstrating that these motions are not compiled into the mod. The example uses the detached FREE_LOOK camera, dashes 24 blocks over 6 ticks and then holds the finishing pose. The bundled config is copied only on the first installation; deleting an example from the live config does not recreate it on later restarts. If you already have `plugins/SceneSync/config.yml`, add/copy the new scene there before `/scenesync reload`—existing configs are not overwritten.
 
 ## Design and safety
 

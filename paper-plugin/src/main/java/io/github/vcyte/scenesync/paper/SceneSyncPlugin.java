@@ -14,13 +14,15 @@ import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
+import java.io.File;
+import java.io.IOException;
 
 public final class SceneSyncPlugin extends JavaPlugin implements Listener {
     private SceneBridge bridge;
     private SceneManagerImpl manager;
 
     @Override public void onEnable() {
-        saveDefaultConfig();
+        ensureInitialConfig();
         bridge = new SceneBridge(this);
         bridge.register();
         manager = new SceneManagerImpl(this, bridge);
@@ -34,6 +36,18 @@ public final class SceneSyncPlugin extends JavaPlugin implements Listener {
         command.setTabCompleter(executor);
         Bukkit.getScheduler().runTaskTimer(this, manager::tick, 1L, 1L);
         getLogger().info("SceneSync 0.1.3 enabled (protocol 3).");
+    }
+
+    /** Copy the bundled examples only on the first installation, never on later restarts. */
+    private void ensureInitialConfig() {
+        File marker = new File(getDataFolder(), ".scenesync-config-initialized");
+        if (marker.exists()) return;
+        saveDefaultConfig();
+        try {
+            if (!marker.createNewFile()) getLogger().warning("Could not create config initialization marker");
+        } catch (IOException exception) {
+            getLogger().warning("Could not persist config initialization marker: " + exception.getMessage());
+        }
     }
 
     @Override public void onDisable() {
