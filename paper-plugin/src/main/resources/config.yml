@@ -7,7 +7,7 @@ scenes:
       wave: IGNORE_DAMAGE
       bow: CANCEL_SCENE
     camera:
-      mode: LIMITED # FREE_LOOK preserves mouse aim; LOCKED follows the authored yaw/pitch track
+      mode: FREE_LOOK # keep mouse/F5 look free while the animation plays
       max-yaw-degrees: 55.0 # firm forward cone; excess mouse travel is discarded at the edge
       max-pitch-degrees: 30.0
     frames:
@@ -64,7 +64,7 @@ scenes:
     duration-ticks: 36
     damage-policy: CANCEL_SCENE # being hit cancels the attack; damage is not ignored
     camera:
-      mode: LOCKED # eases into the forward view, then follows the shared action track
+      mode: FREE_LOOK # keep mouse/F5 look free while the animation plays
       max-yaw-degrees: 80.0
       max-pitch-degrees: 45.0
     frames:
