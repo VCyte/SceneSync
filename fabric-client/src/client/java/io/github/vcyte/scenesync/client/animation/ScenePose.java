@@ -52,6 +52,37 @@ public final class ScenePose {
                 model.rightArm.xRot -= 0.25f;
                 model.leftArm.xRot -= 0.25f;
             }
+            case "lightning_charge" -> {
+                float pulse = (float)Math.sin(phase * 0.55f) * 0.035f;
+                model.body.xRot = 0.42f + pulse;
+                model.rightArm.xRot = -0.55f + pulse;
+                model.rightArm.yRot = -0.34f;
+                model.rightArm.zRot = -0.12f;
+                model.leftArm.xRot = -0.42f - pulse;
+                model.leftArm.yRot = 0.34f;
+                model.leftArm.zRot = 0.12f;
+                model.rightLeg.xRot = 0.16f;
+                model.leftLeg.xRot = 0.16f;
+            }
+            case "lightning_dash" -> {
+                float pulse = (float)Math.sin(phase * 4.0f) * 0.04f;
+                model.body.xRot = 0.58f + pulse;
+                model.rightArm.xRot = -1.42f + pulse;
+                model.rightArm.yRot = -0.18f;
+                model.rightArm.zRot = -0.08f;
+                model.leftArm.xRot = 0.78f - pulse;
+                model.leftArm.yRot = 0.12f;
+                model.leftLeg.xRot = -0.74f - pulse;
+                model.rightLeg.xRot = 0.62f + pulse;
+            }
+            case "lightning_finish" -> {
+                model.body.xRot = 0.20f;
+                model.rightArm.xRot = -1.72f;
+                model.rightArm.yRot = -0.22f;
+                model.leftArm.xRot = -0.18f;
+                model.leftLeg.xRot = -0.12f;
+                model.rightLeg.xRot = 0.12f;
+            }
             // idle and walk intentionally preserve vanilla locomotion.
             default -> { }
         }

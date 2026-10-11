@@ -71,4 +71,8 @@ class SceneDefinitionTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new SceneFrame(0, 0, 0, 0, 0, 0, "arbitrary", 0, 0, 0, 0));
     }
+    @Test void acceptsThunderclapChargeDashAndFinishPoseIds() {
+        for (String animation : List.of("lightning_charge", "lightning_dash", "lightning_finish"))
+            assertTrue(SceneFrame.SUPPORTED_ANIMATIONS.contains(animation));
+    }
 }

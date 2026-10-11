@@ -14,7 +14,8 @@ import java.util.regex.Pattern;
 
 public final class SceneController {
     private static final Pattern ID = Pattern.compile("[a-z0-9][a-z0-9._-]{0,63}");
-    private static final Set<String> POSES = Set.of("idle", "walk", "run", "wave", "bow", "spin", "clap", "sit");
+    private static final Set<String> POSES = Set.of("idle", "walk", "run", "wave", "bow", "spin", "clap", "sit",
+            "lightning_charge", "lightning_dash", "lightning_finish");
     private static final ConcurrentHashMap<Integer, SceneTrack> TRACKS = new ConcurrentHashMap<>();
     private SceneController() { }
 

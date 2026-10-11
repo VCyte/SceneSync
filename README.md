@@ -32,11 +32,11 @@ Artifacts are written to:
 2. Install the matching protocol-v2 Fabric client mod on every player who should act in scenes or see SceneSync visuals.
 3. Restart the server and client, then use `/scenesync help`.
 
-The plugin has a `demo` scene in `paper-plugin/src/main/resources/config.yml`. Only operators can start or stop scenes by default.
+The plugin has a `demo` scene and a `thunderclap-flash` example in `paper-plugin/src/main/resources/config.yml`. Start it with `/scenesync play thunderclap-flash [player]`; only operators can start or stop scenes by default. The example charges for 16 ticks, locks the actor's view, dashes 12 blocks over 6 ticks, then holds a finishing pose. If you already have `plugins/SceneSync/config.yml`, add/copy the new scene there before `/scenesync reload`—existing configs are not overwritten.
 
 ## Design and safety
 
-- The server validates scene paths and collision safety; the actor mod sends normal movement packets from the timeline. Significant divergence or unsafe paths stop playback instead of causing a teleport-correction loop.
+- The server validates scene paths and collision safety; fast segments are sampled at <=0.25-block intervals with body-width checks, and unsafe movement events are cancelled. The actor mod sends normal movement packets from the timeline. Significant divergence or unsafe paths stop playback instead of causing a teleport-correction loop.
 - Each scene can preserve free look, smoothly lock to a keyframed action camera, or constrain mouse look to a forward cone (default limits: +/-80° yaw and +/-45° pitch). Camera yaw/pitch keyframes move the actor's view and authored head pose together; only the actor's camera is controlled, never viewers' cameras. Roll and shake are optional and tightly clamped; FOV is bounded and defaults to neutral.
 - Scene damage behavior is configurable per animation: the scene fallback is `CANCEL_SCENE` by default, and entries such as `wave: IGNORE_DAMAGE` can override individual animation IDs.
 - Network payloads are versioned, size-bounded, parsed with strict bounds, and rate-limited. Unsupported protocol versions are rejected.
@@ -57,6 +57,6 @@ See `docs/PLUGIN-DEVELOPMENT.md` for the exact current API and limitations, incl
 
 ## Compatibility and roadmap
 
-Initial scope is player actors, keyframed client-driven normal movement packets with Paper path/collision validation, shared-time client render interpolation, synchronized built-in body poses, configurable local camera behavior, and per-animation damage policy. This build has passed compilation and CI; a live in-game smoothness/compatibility acceptance test is still required. Arbitrary third-party animation packs, Forge/NeoForge, cross-version protocol negotiation, and robust compatibility patches for other animation mods require separate implementation and testing. SceneSync deliberately does not promise perfect compatibility with every rendering or server plugin stack.
+Initial scope is player actors, keyframed client-driven normal movement packets with Paper path/collision validation, shared-time client render interpolation, synchronized built-in body poses (including a charge/dash/finish sword example), configurable local camera behavior, and per-animation damage policy. This build has passed compilation and CI; a live in-game smoothness/compatibility acceptance test is still required. Arbitrary third-party animation packs, Forge/NeoForge, cross-version protocol negotiation, and robust compatibility patches for other animation mods require separate implementation and testing. SceneSync deliberately does not promise perfect compatibility with every rendering or server plugin stack.
 
 Report reproducible issues with the exact Minecraft, Paper, Fabric Loader/API, Java, and mod versions.

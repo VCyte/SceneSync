@@ -59,3 +59,93 @@ scenes:
         pitch: 0.0
         animation: idle
         camera-fov: 0.0
+
+  thunderclap-flash:
+    duration-ticks: 36
+    damage-policy: CANCEL_SCENE # being hit cancels the attack; damage is not ignored
+    camera:
+      mode: LOCKED # eases into the forward view, then follows the shared action track
+      max-yaw-degrees: 80.0
+      max-pitch-degrees: 45.0
+    frames:
+      - tick: 0
+        x: 0.0
+        y: 0.0
+        z: 0.0
+        yaw: 0.0
+        pitch: 0.0
+        animation: lightning_charge
+        camera-pitch: 4.0
+        camera-fov: -8.0
+      - tick: 14
+        x: 0.0
+        y: 0.0
+        z: 0.0
+        yaw: 0.0
+        pitch: 0.0
+        animation: lightning_charge
+        camera-pitch: 2.0
+        camera-fov: -8.0
+      - tick: 16
+        x: 0.0
+        y: 0.0
+        z: 0.0
+        yaw: 0.0
+        pitch: 0.0
+        animation: lightning_dash
+        camera-pitch: 0.0
+        camera-fov: 8.0
+      - tick: 18
+        x: 0.0
+        y: 0.0
+        z: 4.0
+        yaw: 0.0
+        pitch: 0.0
+        animation: lightning_dash
+        camera-fov: 18.0
+        camera-shake: 0.5
+      - tick: 20
+        x: 0.0
+        y: 0.0
+        z: 8.0
+        yaw: 0.0
+        pitch: 0.0
+        animation: lightning_dash
+        camera-fov: 18.0
+        camera-shake: 0.8
+      - tick: 22
+        x: 0.0
+        y: 0.0
+        z: 12.0
+        yaw: 0.0
+        pitch: 0.0
+        animation: lightning_finish
+        camera-roll: -3.0
+        camera-shake: 1.0
+        camera-fov: 12.0
+      - tick: 24
+        x: 0.0
+        y: 0.0
+        z: 12.0
+        yaw: 0.0
+        pitch: 0.0
+        animation: lightning_finish
+        camera-roll: 0.0
+        camera-shake: 0.0
+        camera-fov: 4.0
+      - tick: 30
+        x: 0.0
+        y: 0.0
+        z: 12.0
+        yaw: 0.0
+        pitch: 0.0
+        animation: idle
+        camera-fov: 0.0
+      - tick: 36
+        x: 0.0
+        y: 0.0
+        z: 12.0
+        yaw: 0.0
+        pitch: 0.0
+        animation: idle
+        camera-fov: 0.0

@@ -17,7 +17,8 @@ public record SceneFrame(
         float cameraShake,
         float cameraFov
 ) {
-    public static final Set<String> SUPPORTED_ANIMATIONS = Set.of("idle", "walk", "run", "wave", "bow", "spin", "clap", "sit");
+    public static final Set<String> SUPPORTED_ANIMATIONS = Set.of("idle", "walk", "run", "wave", "bow", "spin", "clap", "sit",
+            "lightning_charge", "lightning_dash", "lightning_finish");
     public SceneFrame {
         if (tick < 0 || tick > 24_000) throw new IllegalArgumentException("tick must be in 0..24000");
         bounded(x, "x"); bounded(y, "y"); bounded(z, "z");
@@ -32,7 +33,7 @@ public record SceneFrame(
         bounded(cameraFov, "cameraFov", 25f);
     }
 
-    /** Compatibility overload; legacy camera rotation/shake fields remain accepted but are not applied. */
+    /** Compatibility overload that defaults the optional FOV offset to neutral. */
     public SceneFrame(int tick, double x, double y, double z, float yaw, float pitch, String animation,
                       float cameraYaw, float cameraPitch, float cameraRoll, float cameraShake) {
         this(tick, x, y, z, yaw, pitch, animation, cameraYaw, cameraPitch, cameraRoll, cameraShake, 0f);

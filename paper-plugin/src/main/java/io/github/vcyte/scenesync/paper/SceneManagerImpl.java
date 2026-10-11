@@ -155,7 +155,8 @@ final class SceneManagerImpl implements SceneManager {
             boolean validPath = true;
             for (int tick = Math.max(0, run.elapsedTicks + 1); tick <= timelineTick; tick++) {
                 Location expected = locationAt(run, tick);
-                if (expected == null || !safe(expected)) { validPath = false; break; }
+                Location previous = tick == 0 ? expected : locationAt(run, tick - 1);
+                if (expected == null || previous == null || !sweptSafe(previous, expected)) { validPath = false; break; }
             }
             if (!validPath) { stopInternal(run); continue; }
             run.elapsedTicks = timelineTick;
@@ -179,7 +180,13 @@ final class SceneManagerImpl implements SceneManager {
         int lastTick = Math.min(run.definition.durationTicks(), currentTick + 1);
         for (int tick = firstTick; tick <= lastTick; tick++) {
             Location expected = locationAt(run, tick);
-            if (expected != null && expected.distanceSquared(to) <= 0.75 * 0.75) return true;
+            if (expected != null && expected.distanceSquared(to) <= 0.75 * 0.75) {
+                if (from != null && !sweptSafe(from, to)) {
+                    stopInternal(run);
+                    return false;
+                }
+                return true;
+            }
         }
         // A collision, competing movement plugin, or client desync must not trigger a correction loop.
         stopInternal(run);
@@ -243,7 +250,29 @@ final class SceneManagerImpl implements SceneManager {
                 || location.getY() < world.getMinHeight() || location.getY() + 1.8 >= world.getMaxHeight()) return false;
         if (!world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) return false;
         return world.getBlockAt(location).isPassable()
-                && world.getBlockAt(location.clone().add(0, 1.0, 0)).isPassable();
+                && world.getBlockAt(location.clone().add(0, 1.0, 0)).isPassable()
+                && world.getBlockAt(location.clone().add(0, 1.7, 0)).isPassable();
+    }
+
+    /** Sample fast client-driven movement at <=0.25-block intervals so a dash cannot skip a wall. */
+    private boolean sweptSafe(Location from, Location to) {
+        if (from.getWorld() == null || !from.getWorld().equals(to.getWorld())) return false;
+        double distance = from.distance(to);
+        if (!Double.isFinite(distance) || distance > 16.0) return false;
+        int steps = Math.max(1, (int)Math.ceil(distance / 0.25));
+        if (steps > 64) return false;
+        for (int step = 0; step <= steps; step++) {
+            double t = step / (double)steps;
+            Location sample = from.clone().add((to.getX() - from.getX()) * t,
+                    (to.getY() - from.getY()) * t, (to.getZ() - from.getZ()) * t);
+            if (!safe(sample)) return false;
+            for (double dx : new double[]{-0.3, 0.3}) {
+                for (double dz : new double[]{-0.3, 0.3}) {
+                    if (!safe(sample.clone().add(dx, 0, dz))) return false;
+                }
+            }
+        }
+        return true;
     }
 
     @Override public boolean stop(Player actor) {

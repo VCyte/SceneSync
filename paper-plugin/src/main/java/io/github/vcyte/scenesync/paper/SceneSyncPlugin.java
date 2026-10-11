@@ -49,7 +49,7 @@ public final class SceneSyncPlugin extends JavaPlugin implements Listener {
     public void onMovement(PlayerMoveEvent event) {
         if (manager == null || event.getTo() == null) return;
         if (event instanceof PlayerTeleportEvent) manager.stop(event.getPlayer());
-        manager.acceptClientMovement(event.getPlayer(), event.getFrom(), event.getTo());
+        if (!manager.acceptClientMovement(event.getPlayer(), event.getFrom(), event.getTo())) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
