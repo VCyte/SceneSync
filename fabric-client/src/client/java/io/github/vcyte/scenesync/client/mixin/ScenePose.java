@@ -1,22 +1,13 @@
 package io.github.vcyte.scenesync.client.mixin;
 
-import io.github.vcyte.scenesync.client.SceneController;
 import io.github.vcyte.scenesync.client.SceneTrack;
-import net.minecraft.client.model.geom.ModelPart;
-import net.minecraft.client.model.player.PlayerModel;
-import net.minecraft.client.renderer.entity.state.AvatarRenderState;
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import net.minecraft.client.model.HumanoidModel;
 
-@Mixin(PlayerModel.class)
-public abstract class PlayerModelMixin {
-    @Inject(method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;)V", at = @At("TAIL"))
-    private void scenesync$applyScenePose(AvatarRenderState state, CallbackInfo ci) {
-        SceneTrack.Sample sample = SceneController.sample(state.id, System.currentTimeMillis());
-        if (sample == null) return;
-        PlayerModel model = (PlayerModel)(Object)this;
+/** Applies one scene pose to any humanoid model instance, including the separately rendered armor model. */
+final class ScenePose {
+    private ScenePose() { }
+
+    static void apply(HumanoidModel<?> model, SceneTrack.Sample sample) {
         float phase = sample.ticks() * 0.35f;
         switch (sample.animation()) {
             case "wave" -> {
@@ -49,7 +40,7 @@ public abstract class PlayerModelMixin {
                 model.rightArm.xRot -= 0.25f;
                 model.leftArm.xRot -= 0.25f;
             }
-            // idle and walk intentionally preserve the vanilla locomotion pose.
+            // idle and walk intentionally preserve vanilla locomotion.
             default -> { }
         }
     }
