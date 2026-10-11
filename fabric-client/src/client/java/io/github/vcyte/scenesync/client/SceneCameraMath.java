@@ -9,13 +9,20 @@ public final class SceneCameraMath {
                                    float maxYaw, float maxPitch) {
         float centerYaw = clamp(scriptedYawOffset, -maxYaw, maxYaw);
         float centerPitch = clamp(scriptedPitchOffset, -maxPitch, maxPitch);
-        float minUserYaw = Math.max(-maxYaw, -maxYaw - centerYaw);
-        float maxUserYaw = Math.min(maxYaw, maxYaw - centerYaw);
-        float minUserPitch = Math.max(-maxPitch, -maxPitch - centerPitch);
-        float maxUserPitch = Math.min(maxPitch, maxPitch - centerPitch);
-        float yaw = wrap(actorYaw + centerYaw + clamp(userYawOffset, minUserYaw, maxUserYaw));
-        float pitch = clamp(actorPitch + centerPitch + clamp(userPitchOffset, minUserPitch, maxUserPitch), -90, 90);
+        float yaw = wrap(actorYaw + centerYaw + clampUserOffset(userYawOffset, centerYaw, maxYaw));
+        float pitch = clamp(actorPitch + centerPitch + clampUserOffset(userPitchOffset, centerPitch, maxPitch), -90, 90);
         return new Look(yaw, pitch);
+    }
+
+    /** Clamp and discard excess mouse travel, so reversing direction immediately moves off the edge. */
+    public static float clampUserOffset(float userOffset, float scriptedCenter, float limit) {
+        float center = clamp(scriptedCenter, -limit, limit);
+        return clamp(userOffset, -limit - center, limit - center);
+    }
+
+    /** CameraType.THIRD_PERSON_FRONT mirrors vanilla's camera about the actor's look direction. */
+    public static Look forCamera(float actorYaw, float actorPitch, boolean mirrored) {
+        return mirrored ? new Look(wrap(actorYaw + 180.0f), -actorPitch) : new Look(actorYaw, actorPitch);
     }
 
     public static float wrap(float degrees) {

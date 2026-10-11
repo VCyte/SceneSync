@@ -8,8 +8,8 @@ scenes:
       bow: CANCEL_SCENE
     camera:
       mode: LIMITED # FREE_LOOK preserves mouse aim; LOCKED follows the authored yaw/pitch track
-      max-yaw-degrees: 80.0 # stops the view before the actor's rear
-      max-pitch-degrees: 45.0
+      max-yaw-degrees: 55.0 # firm forward cone; excess mouse travel is discarded at the edge
+      max-pitch-degrees: 30.0
     frames:
       - tick: 0
         x: 0.0
@@ -116,7 +116,7 @@ scenes:
       - tick: 18
         x: 0.0
         y: 0.0
-        z: 4.0
+        z: 8.0
         yaw: 0.0
         pitch: 0.0
         animation: "scenesync:thunderclap_dash"
@@ -131,7 +131,7 @@ scenes:
       - tick: 20
         x: 0.0
         y: 0.0
-        z: 8.0
+        z: 16.0
         yaw: 0.0
         pitch: 0.0
         animation: "scenesync:thunderclap_dash"
@@ -146,7 +146,7 @@ scenes:
       - tick: 22
         x: 0.0
         y: 0.0
-        z: 12.0
+        z: 24.0
         yaw: 0.0
         pitch: 0.0
         animation: "scenesync:thunderclap_finish"
@@ -162,7 +162,7 @@ scenes:
       - tick: 24
         x: 0.0
         y: 0.0
-        z: 12.0
+        z: 24.0
         yaw: 0.0
         pitch: 0.0
         animation: "scenesync:thunderclap_finish"
@@ -178,7 +178,7 @@ scenes:
       - tick: 30
         x: 0.0
         y: 0.0
-        z: 12.0
+        z: 24.0
         yaw: 0.0
         pitch: 0.0
         animation: idle
@@ -186,7 +186,7 @@ scenes:
       - tick: 36
         x: 0.0
         y: 0.0
-        z: 12.0
+        z: 24.0
         yaw: 0.0
         pitch: 0.0
         animation: idle

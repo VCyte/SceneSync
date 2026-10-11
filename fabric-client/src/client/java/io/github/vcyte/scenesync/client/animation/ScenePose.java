@@ -9,72 +9,79 @@ public final class ScenePose {
     private ScenePose() { }
 
     public static void apply(HumanoidModel<?> model, SceneTrack.Sample sample) {
-        if (sample.pose() != null) {
-            applyPose(model, sample.pose());
-            applyCameraAim(model, sample);
-            return;
-        }
-        float phase = sample.ticks() * 0.35f;
-        // Keep head and scripted action-camera aim in sync. In free-look mode the scene pose owns
-        // the head so unrelated mouse movement cannot make it snap independently of the body.
-        model.head.yRot = 0.0f;
-        model.head.xRot = 0.0f;
-        applyCameraAim(model, sample);
-        switch (sample.animation()) {
+        float envelope = clamp(sample.sceneBlend(), 0.0f, 1.0f);
+        if (sample.pose() != null) applyPose(model, sample.pose(), envelope);
+
+        float transition = clamp(sample.animationBlend(), 0.0f, 1.0f);
+        boolean sameAnimation = sample.animation().equals(sample.nextAnimation());
+        float firstWeight = envelope * (sameAnimation ? 1.0f : 1.0f - transition);
+        float nextWeight = envelope * (sameAnimation ? 0.0f : transition);
+        if (!sample.fromHasPose()) applyLegacyPose(model, sample.animation(), sample.ticks(), firstWeight);
+        if (!sample.toHasPose()) applyLegacyPose(model, sample.nextAnimation(), sample.ticks(), nextWeight);
+
+        // Vanilla setupAnim has already produced the base pose. Script transforms are overlays,
+        // then the action camera adds only its own head aim; each weight returns to that base pose.
+        applyCameraAim(model, sample, envelope);
+    }
+
+    private static void applyLegacyPose(HumanoidModel<?> model, String animation, float ticks, float weight) {
+        if (weight <= 0.0f) return;
+        float phase = ticks * 0.35f;
+        switch (animation) {
             case "wave" -> {
-                model.rightArm.xRot = -1.55f + (float)Math.sin(phase * 2.0f) * 0.42f;
-                model.rightArm.yRot = -0.18f;
+                model.rightArm.xRot += (-1.55f + (float)Math.sin(phase * 2.0f) * 0.42f) * weight;
+                model.rightArm.yRot -= 0.18f * weight;
             }
             case "bow" -> {
-                model.body.xRot = 0.34f;
-                model.head.xRot += 0.28f;
-                model.rightArm.xRot = -0.45f;
-                model.leftArm.xRot = -0.45f;
+                model.body.xRot += 0.34f * weight;
+                model.head.xRot += 0.28f * weight;
+                model.rightArm.xRot -= 0.45f * weight;
+                model.leftArm.xRot -= 0.45f * weight;
             }
-            case "spin" -> model.body.yRot += (float)Math.sin(phase) * 0.45f;
+            case "spin" -> model.body.yRot += (float)Math.sin(phase) * 0.45f * weight;
             case "clap" -> {
-                model.rightArm.xRot = -1.25f;
-                model.leftArm.xRot = -1.25f;
-                model.rightArm.yRot = -0.12f;
-                model.leftArm.yRot = 0.12f;
+                model.rightArm.xRot -= 1.25f * weight;
+                model.leftArm.xRot -= 1.25f * weight;
+                model.rightArm.yRot -= 0.12f * weight;
+                model.leftArm.yRot += 0.12f * weight;
             }
             case "sit" -> {
-                model.rightLeg.xRot = -1.35f;
-                model.leftLeg.xRot = -1.35f;
-                model.rightLeg.yRot = 0.12f;
-                model.leftLeg.yRot = -0.12f;
-                model.rightArm.xRot = -0.45f;
-                model.leftArm.xRot = -0.45f;
+                model.rightLeg.xRot -= 1.35f * weight;
+                model.leftLeg.xRot -= 1.35f * weight;
+                model.rightLeg.yRot += 0.12f * weight;
+                model.leftLeg.yRot -= 0.12f * weight;
+                model.rightArm.xRot -= 0.45f * weight;
+                model.leftArm.xRot -= 0.45f * weight;
             }
             case "run" -> {
-                model.body.xRot = 0.15f;
-                model.rightArm.xRot -= 0.25f;
-                model.leftArm.xRot -= 0.25f;
+                model.body.xRot += 0.15f * weight;
+                model.rightArm.xRot -= 0.25f * weight;
+                model.leftArm.xRot -= 0.25f * weight;
             }
             // idle and walk intentionally preserve vanilla locomotion.
             default -> { }
         }
     }
 
-    private static void applyPose(HumanoidModel<?> model, SceneTrack.Pose pose) {
-        apply(model.head, pose.head());
-        apply(model.body, pose.body());
-        apply(model.leftArm, pose.leftArm());
-        apply(model.rightArm, pose.rightArm());
-        apply(model.leftLeg, pose.leftLeg());
-        apply(model.rightLeg, pose.rightLeg());
+    private static void applyPose(HumanoidModel<?> model, SceneTrack.Pose pose, float weight) {
+        apply(model.head, pose.head(), weight);
+        apply(model.body, pose.body(), weight);
+        apply(model.leftArm, pose.leftArm(), weight);
+        apply(model.rightArm, pose.rightArm(), weight);
+        apply(model.leftLeg, pose.leftLeg(), weight);
+        apply(model.rightLeg, pose.rightLeg(), weight);
     }
 
-    private static void apply(ModelPart part, SceneTrack.Bone pose) {
-        part.x += pose.x();
-        part.y += pose.y();
-        part.z += pose.z();
-        part.xRot += (float)Math.toRadians(pose.pitch());
-        part.yRot += (float)Math.toRadians(pose.yaw());
-        part.zRot += (float)Math.toRadians(pose.roll());
+    private static void apply(ModelPart part, SceneTrack.Bone pose, float weight) {
+        part.x += pose.x() * weight;
+        part.y += pose.y() * weight;
+        part.z += pose.z() * weight;
+        part.xRot += (float)Math.toRadians(pose.pitch()) * weight;
+        part.yRot += (float)Math.toRadians(pose.yaw()) * weight;
+        part.zRot += (float)Math.toRadians(pose.roll()) * weight;
     }
 
-    private static void applyCameraAim(HumanoidModel<?> model, SceneTrack.Sample sample) {
+    private static void applyCameraAim(HumanoidModel<?> model, SceneTrack.Sample sample, float weight) {
         if (sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK) return;
         float yaw = sample.cameraMode() == SceneTrack.CameraMode.LIMITED
                 ? Math.max(-sample.maxYawDegrees(), Math.min(sample.maxYawDegrees(), sample.cameraYaw()))
@@ -82,7 +89,9 @@ public final class ScenePose {
         float pitch = sample.cameraMode() == SceneTrack.CameraMode.LIMITED
                 ? Math.max(-sample.maxPitchDegrees(), Math.min(sample.maxPitchDegrees(), sample.cameraPitch()))
                 : sample.cameraPitch();
-        model.head.yRot += (float)Math.toRadians(Math.max(-70.0f, Math.min(70.0f, yaw)));
-        model.head.xRot += (float)Math.toRadians(Math.max(-55.0f, Math.min(55.0f, pitch)));
+        model.head.yRot += (float)Math.toRadians(Math.max(-70.0f, Math.min(70.0f, yaw))) * weight;
+        model.head.xRot += (float)Math.toRadians(Math.max(-55.0f, Math.min(55.0f, pitch))) * weight;
     }
+
+    private static float clamp(float value, float min, float max) { return Math.max(min, Math.min(max, value)); }
 }

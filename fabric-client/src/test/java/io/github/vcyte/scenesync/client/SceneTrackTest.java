@@ -77,12 +77,50 @@ class SceneTrackTest {
         assertEquals(180.0f, sample.pose().rightArm().pitch(), 1.0e-4f);
     }
 
+    @Test void easesPoseAndCameraEffectsAtBothSceneBoundaries() {
+        SceneTrack track = new SceneTrack("run-envelope", 12, 20, 1_000,
+                0, 64, 0, 0, List.of(frameWithFov(0, -20), frameWithFov(20, -20)));
+
+        assertEquals(0.0f, track.sample(1_000).sceneBlend(), 1.0e-6f);
+        assertEquals(1.0f, track.sample(1_300).sceneBlend(), 1.0e-6f);
+        assertEquals(1.0f, track.sample(1_700).sceneBlend(), 1.0e-6f);
+        assertEquals(0.0f, track.sample(2_000).sceneBlend(), 1.0e-6f);
+    }
+
+    @Test void smoothPathUsesFractionalTimelineAndZeroVelocityAtItsStart() {
+        SceneTrack track = new SceneTrack("run-smooth", 13, 24, 1_000,
+                0, 64, 0, 0, List.of(
+                frame(0, 0, 0, 0, 0), frame(14, 0, 0, 0, 0), frame(16, 0, 0, 0, 0),
+                frame(18, 0, 0, 8, 0), frame(20, 0, 0, 16, 0), frame(22, 0, 0, 24, 0),
+                frame(24, 0, 0, 24, 0)));
+
+        assertEquals(0.0, track.sample(1_800).worldZ(), 1.0e-6);
+        SceneTrack.Sample betweenTicks = track.sample(1_875);
+        assertEquals(5.625, betweenTicks.worldZ(), 1.0e-6);
+        assertEquals(24.0, track.sample(2_200).worldZ(), 1.0e-6);
+    }
+
+    @Test void keyframeAnimationIdsCrossfadeInsteadOfChangingAsAOneFrameSwitch() {
+        SceneTrack track = new SceneTrack("run-animation-blend", 14, 20, 1_000,
+                0, 64, 0, 0, List.of(
+                frameNamed(0, "bow"), frameNamed(20, "wave")));
+
+        SceneTrack.Sample middle = track.sample(1_500);
+        assertEquals("bow", middle.animation());
+        assertEquals("wave", middle.nextAnimation());
+        assertEquals(0.5f, middle.animationBlend(), 1.0e-6f);
+    }
+
     private static SceneTrack.Frame frame(int tick, double x, double y, double z, float yaw) {
         return new SceneTrack.Frame(tick, x, y, z, yaw, 0, "walk", 0, 0, 0, 0);
     }
 
     private static SceneTrack.Frame frameWithFov(int tick, float fov) {
         return new SceneTrack.Frame(tick, 0, 0, 0, 0, 0, "idle", 0, 0, 0, 0, fov);
+    }
+
+    private static SceneTrack.Frame frameNamed(int tick, String animation) {
+        return new SceneTrack.Frame(tick, 0, 0, 0, 0, 0, animation, 0, 0, 0, 0);
     }
 
     private static SceneTrack.Frame posedFrame(int tick, String animation, SceneTrack.Pose pose) {

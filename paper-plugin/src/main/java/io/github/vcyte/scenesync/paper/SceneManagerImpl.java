@@ -182,9 +182,22 @@ final class SceneManagerImpl implements SceneManager {
             if (timelineTick > run.definition.durationTicks()) { stopInternal(run); continue; }
             boolean validPath = true;
             for (int tick = Math.max(0, run.elapsedTicks + 1); tick <= timelineTick; tick++) {
-                Location expected = locationAt(run, tick);
-                Location previous = tick == 0 ? expected : locationAt(run, tick - 1);
-                if (expected == null || previous == null || !sweptSafe(previous, expected)) { validPath = false; break; }
+                if (tick == 0) {
+                    Location origin = locationAt(run, 0.0);
+                    if (origin == null || !sweptSafe(origin, origin)) { validPath = false; break; }
+                    continue;
+                }
+                for (int sub = 1; sub <= 4; sub++) {
+                    double fromTick = tick - 1 + (sub - 1) / 4.0;
+                    double toTick = tick - 1 + sub / 4.0;
+                    Location previous = locationAt(run, fromTick);
+                    Location expected = locationAt(run, toTick);
+                    if (expected == null || previous == null || !sweptSafe(previous, expected)) {
+                        validPath = false;
+                        break;
+                    }
+                }
+                if (!validPath) break;
             }
             if (!validPath) { stopInternal(run); continue; }
             run.elapsedTicks = timelineTick;
@@ -203,18 +216,17 @@ final class SceneManagerImpl implements SceneManager {
                 && from.distanceSquared(to) < 1.0e-8) return true;
         long now = System.currentTimeMillis();
         if (now < run.startAtMillis) return true;
-        int currentTick = (int)((now - run.startAtMillis) / 50L);
-        int firstTick = Math.max(0, currentTick - 6);
-        int lastTick = Math.min(run.definition.durationTicks(), currentTick + 1);
-        for (int tick = firstTick; tick <= lastTick; tick++) {
-            Location expected = locationAt(run, tick);
-            if (expected != null && expected.distanceSquared(to) <= 0.75 * 0.75) {
-                if (from != null && !sweptSafe(from, to)) {
-                    stopInternal(run);
-                    return false;
-                }
-                return true;
+        double currentTick = (now - run.startAtMillis) / 50.0;
+        double firstTick = Math.max(0.0, currentTick - 6.0);
+        double lastTick = Math.min(run.definition.durationTicks(), currentTick + 1.0);
+        if (ScenePathMath.matches(run.definition.frames(), firstTick, lastTick,
+                run.origin.getX(), run.origin.getY(), run.origin.getZ(), run.origin.getYaw(),
+                to.getX(), to.getY(), to.getZ(), 0.75)) {
+            if (from != null && !sweptSafe(from, to)) {
+                stopInternal(run);
+                return false;
             }
+            return true;
         }
         // A collision, competing movement plugin, or client desync must not trigger a correction loop.
         stopInternal(run);
@@ -247,7 +259,7 @@ final class SceneManagerImpl implements SceneManager {
         }
     }
 
-    private Location locationAt(ActiveScene run, int tick) {
+    private Location locationAt(ActiveScene run, double tick) {
         List<SceneFrame> frames = run.definition.frames();
         SceneFrame a = frames.getFirst(); SceneFrame b = frames.getLast();
         for (int i = 1; i < frames.size(); i++) {
@@ -255,7 +267,8 @@ final class SceneManagerImpl implements SceneManager {
         }
         double span = Math.max(1, b.tick() - a.tick());
         double t = Math.max(0, Math.min(1, (tick - a.tick()) / span));
-        double x = lerp(a.x(), b.x(), t), y = lerp(a.y(), b.y(), t), z = lerp(a.z(), b.z(), t);
+        ScenePathMath.Point point = ScenePathMath.sample(frames, tick);
+        double x = point.x(), y = point.y(), z = point.z();
         float yaw = (float)lerp(a.yaw(), b.yaw(), t), pitch = (float)lerp(a.pitch(), b.pitch(), t);
         double radians = Math.toRadians(run.origin.getYaw());
         double worldX = x * Math.cos(radians) - z * Math.sin(radians);
@@ -272,6 +285,7 @@ final class SceneManagerImpl implements SceneManager {
     }
 
     private static double lerp(double a, double b, double t) { return a + (b - a) * t; }
+
     private boolean safe(Location location) {
         World world = location.getWorld();
         if (world == null || !world.getWorldBorder().isInside(location)

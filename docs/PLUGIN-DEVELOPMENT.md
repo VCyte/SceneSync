@@ -4,12 +4,12 @@
 
 ```gradle
 dependencies {
-    compileOnly files('libs/scenesync-api-0.1.0.jar')
+    compileOnly files('libs/scenesync-api-0.1.1.jar')
     compileOnly 'io.papermc.paper:paper-api:26.2.build.124-stable'
 }
 ```
 
-Download `scenesync-api-0.1.0.jar` from the matching SceneSync GitHub Release into your plugin project's `libs/` directory. For a local multi-project build, use `implementation project(':scenesync-api')`.
+Download `scenesync-api-0.1.1.jar` from the matching SceneSync GitHub Release into your plugin project's `libs/` directory. For a local multi-project build, use `implementation project(':scenesync-api')`.
 
 ## Register and play a scene
 
@@ -32,7 +32,7 @@ All `SceneManager` calls must run on the Paper server thread. Register scenes du
 
 ## Coordinates and time
 
-Frame positions are **offsets in blocks from the actor's starting position, in the actor's starting facing basis**: positive z is forward and positive x is to the actor's right. The server and clients rotate those offsets into world coordinates from the synchronized origin yaw. While a path segment moves, the actor faces its direction of travel; on stationary segments, the frame yaw is relative to the starting view. `pitch` is relative to the starting view. Timeline time is in server ticks (20 ticks/second), with a short shared countdown; keyframe ticks must strictly increase and the first must be 0. The actor's client mod sends ordinary player movement packets at the timeline position instead of having Paper teleport the player every tick. While a track is active, movement, jump, sprint, and shift inputs are suppressed locally. Paper checks the trajectory, world safety, and movement packet deviation and ends playback on an unsafe path, significant deviation, external teleport, or competing movement. Compatible clients render actor, armor, held items, and actor camera position from the same timeline. This avoids the server teleport-correction loop, but collision, protection plugins, latency, and other movement plugins can still affect playback.
+Frame positions are **offsets in blocks from the actor's starting position, in the actor's starting facing basis**: positive z is forward and positive x is to the actor's right. The server and clients rotate those offsets into world coordinates from the synchronized origin yaw and evaluate x/y/z with the same shape-preserving cubic curve. This preserves authored keyframe positions while smoothing velocity at corners and at scene entry/exit. While a path segment moves, the actor faces its direction of travel; on stationary segments, the frame yaw is relative to the starting view. `pitch` is relative to the starting view. Timeline time is in server ticks (20 ticks/second), with a short shared countdown; keyframe ticks must strictly increase and the first must be 0. The actor's client mod sends ordinary player movement packets at the timeline position instead of having Paper teleport the player every tick. While a track is active, movement, jump, sprint, and shift inputs are suppressed locally. Paper checks movement against fractional points on the bounded-latency path window—not just integer server ticks—and sweeps the curve in sub-tick increments, through world safety and actor width. Unsafe paths, significant deviation, external teleport, or competing movement ends playback. Compatible clients render actor, armor, held items, and actor camera position from the same timeline. This avoids the server teleport-correction loop, but collision, protection plugins, latency, and other movement plugins can still affect playback.
 
 ## Camera control
 
@@ -40,7 +40,7 @@ Camera control is local to the **scene actor**; viewers retain their own camera.
 
 - `FREE_LOOK`: preserve the actor's own mouse look. Scene camera yaw/pitch offsets do not control the view.
 - `LOCKED`: follow the actor's facing plus the keyframed `camera-yaw`/`camera-pitch` offsets. Mouse look is locked during the scene, with a 300 ms eased entry so the view does not snap at start.
-- `LIMITED`: follow those same authored camera offsets while retaining mouse control inside a forward-facing cone. Defaults are +/-80 degrees horizontally and +/-45 vertically; the view is clamped relative to the actor's facing so it cannot swing around to the back. Clamp bounds accept 0..100 horizontal and 0..70 vertical degrees.
+- `LIMITED`: follow those same authored camera offsets while retaining mouse control inside a forward-facing cone. The sample config uses +/-55 degrees horizontally and +/-30 vertically; configure per scene as needed. The view is clamped relative to the actor's facing, excess mouse travel is discarded at the edge, and reversing direction responds immediately. Clamp bounds accept 0..100 horizontal and 0..70 vertical degrees.
 
 Set `camera.mode`, `camera.max-yaw-degrees`, and `camera.max-pitch-degrees` under the scene in YAML, or pass `SceneCameraSettings` to the six-argument `SceneDefinition` constructor. In `LOCKED` and `LIMITED`, the actor's head pose follows the authored camera yaw/pitch offsets; keyframe offsets are interpolated over time. Camera roll is limited to +/-6 degrees and shake to a subtle maximum, while additive FOV remains bounded to +/-25 degrees. All these effects default to neutral. Camera control does not alter viewer cameras.
 
@@ -84,9 +84,9 @@ sceneManager.register(scene);
 sceneManager.play(player, scene.id());
 ```
 
-Translations are bounded model-pixel offsets (each axis +/-8); rotations are degrees (+/-180). The client interpolates translation and shortest-path Euler rotation between frames. The six vanilla humanoid parts are head, body, arms and legs; their vanilla armor models and arm-attached held items inherit the transforms. This is a generic humanoid rig, not arbitrary mesh/bone/texture loading. Built-in convenience IDs (`idle`, `walk`, `run`, `wave`, `bow`, `spin`, `clap`, `sit`) remain optional legacy poses; new plugin motions should use namespaced IDs and provide pose data.
+Translations are bounded model-pixel offsets (each axis +/-8); rotations are degrees (+/-180). The client eases pose transitions, interpolates shortest-path Euler rotations, and returns to the current vanilla pose on scene end; an early STOP fades visuals over 200 ms while movement/input control ends immediately. The six vanilla humanoid parts are head, body, arms and legs; their vanilla armor models and arm-attached held items inherit the transforms. This is a generic humanoid rig, not arbitrary mesh/bone/texture loading. Built-in convenience IDs (`idle`, `walk`, `run`, `wave`, `bow`, `spin`, `clap`, `sit`) remain optional legacy poses; new plugin motions should use namespaced IDs and provide pose data.
 
-The Thunderclap sample is available as `/scenesync play thunderclap-flash [player]`: it charges for 16 ticks, then moves 12 blocks over 6 ticks (2 blocks per server tick), holds a finishing pose, and eases camera/FOV accents around the dash. Its charge/dash/finish transforms use `scenesync:...` IDs and generic pose payloads—not client-side lightning code. It uses `LOCKED` camera control and is cancelled by damage. Its rapid path is checked at <=0.25-block intervals, including player-width corner samples, and a movement event crossing an unsafe segment is cancelled; the endpoint must also remain on the scene path. This is a visual scripted move, not a damage/hitbox/combat system.
+The Thunderclap sample is available as `/scenesync play thunderclap-flash [player]`: it charges for 16 ticks, then moves 24 blocks over 6 ticks (4 blocks per server tick at peak), holds a finishing pose, and eases camera/FOV accents around the dash. Its charge/dash/finish transforms use `scenesync:...` IDs and generic pose payloads—not client-side lightning code. It uses `LOCKED` camera control and is cancelled by damage. Its rapid path is checked at <=0.25-block intervals, including player-width and sub-tick curve samples; client movement is matched against fractional points on the bounded-latency path. This is a visual scripted move, not a damage/hitbox/combat system.
 
 In `FREE_LOOK`, head direction remains locked to the scene pose rather than live mouse aim; in camera-controlled modes, authored camera yaw/pitch offsets also turn the head when using legacy poses. `camera-fov` is an additive degree offset, bounded to +/-25 and clamped to 30..110; it defaults to 0. Camera yaw/pitch/roll/shake keyframes affect the actor's view only in `LOCKED` or `LIMITED` mode, with roll/shake comfort clamps.
 

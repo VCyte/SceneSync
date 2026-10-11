@@ -18,18 +18,23 @@ public record SceneTrack(String runId, int entityId, int durationTicks, long loc
         if (ticks < 0 || ticks > durationTicks) return null;
         Frame a = frames.getFirst();
         Frame b = a;
+        int segment = 0;
         for (int i = 1; i < frames.size(); i++) {
-            if (ticks < frames.get(i).tick()) { b = frames.get(i); break; }
+            if (ticks < frames.get(i).tick()) { b = frames.get(i); segment = i - 1; break; }
             a = frames.get(i);
             b = a;
+            segment = i;
         }
         double span = Math.max(1, b.tick() - a.tick());
         float t = (float)Math.max(0, Math.min(1, (ticks - a.tick()) / span));
-        float eased = t * t * (3.0f - 2.0f * t);
+        float eased = smoothstep(t);
+        float sceneBlend = sceneEnvelope(ticks, durationTicks);
         Pose pose = a.pose() == null && b.pose() == null ? null
                 : Pose.interpolate(a.pose() == null ? Pose.NEUTRAL : a.pose(),
-                        b.pose() == null ? Pose.NEUTRAL : b.pose(), t);
-        double x = lerp(a.x(), b.x(), t), y = lerp(a.y(), b.y(), t), z = lerp(a.z(), b.z(), t);
+                        b.pose() == null ? Pose.NEUTRAL : b.pose(), eased);
+        double x = smoothCoordinate(frames, segment, ticks, 0);
+        double y = smoothCoordinate(frames, segment, ticks, 1);
+        double z = smoothCoordinate(frames, segment, ticks, 2);
         double radians = Math.toRadians(originYaw);
         double worldX = originX + x * Math.cos(radians) - z * Math.sin(radians);
         double worldZ = originZ + x * Math.sin(radians) + z * Math.cos(radians);
@@ -41,11 +46,59 @@ public record SceneTrack(String runId, int entityId, int durationTicks, long loc
             yaw = (float)Math.toDegrees(Math.atan2(-worldDx, worldDz));
         } else yaw = originYaw + lerp(a.yaw(), b.yaw(), t);
         return new Sample(worldX, originY + y, worldZ, wrapDegrees(yaw),
-                lerp(a.pitch(), b.pitch(), t), a.animation(), (float)ticks,
-                lerp(a.cameraYaw(), b.cameraYaw(), t), lerp(a.cameraPitch(), b.cameraPitch(), t),
-                lerp(a.cameraRoll(), b.cameraRoll(), t), lerp(a.cameraShake(), b.cameraShake(), t),
+                lerp(a.pitch(), b.pitch(), eased), a.animation(), (float)ticks,
+                lerp(a.cameraYaw(), b.cameraYaw(), eased), lerp(a.cameraPitch(), b.cameraPitch(), eased),
+                lerp(a.cameraRoll(), b.cameraRoll(), eased), lerp(a.cameraShake(), b.cameraShake(), eased),
                 lerp(a.cameraFov(), b.cameraFov(), eased), cameraControl.mode(),
-                cameraControl.maxYawDegrees(), cameraControl.maxPitchDegrees(), pose);
+                cameraControl.maxYawDegrees(), cameraControl.maxPitchDegrees(), pose,
+                b.animation(), eased, sceneBlend, a.pose() != null, b.pose() != null);
+    }
+
+    private static double smoothCoordinate(List<Frame> frames, int segment, double tick, int axis) {
+        int last = frames.size() - 1;
+        if (segment >= last || frames.size() == 1) return coordinate(frames.get(last), axis);
+        Frame a = frames.get(segment), b = frames.get(segment + 1);
+        double h = b.tick() - a.tick();
+        double delta = (coordinate(b, axis) - coordinate(a, axis)) / h;
+        double m0 = tangent(frames, segment, axis), m1 = tangent(frames, segment + 1, axis);
+        double t = Math.max(0.0, Math.min(1.0, (tick - a.tick()) / h));
+        double t2 = t * t, t3 = t2 * t;
+        return (2*t3 - 3*t2 + 1) * coordinate(a, axis)
+                + (t3 - 2*t2 + t) * h * m0
+                + (-2*t3 + 3*t2) * coordinate(b, axis)
+                + (t3 - t2) * h * m1;
+    }
+
+    /** PCHIP tangents keep authored path points exact while removing velocity jumps and overshoot. */
+    private static double tangent(List<Frame> frames, int index, int axis) {
+        int last = frames.size() - 1;
+        if (last == 0) return 0.0;
+        if (index == 0 || index == last) return 0.0;
+        double before = secant(frames, index - 1, index, axis);
+        double after = secant(frames, index, index + 1, axis);
+        if (before == 0.0 || after == 0.0 || Math.signum(before) != Math.signum(after)) return 0.0;
+        double hBefore = frames.get(index).tick() - frames.get(index - 1).tick();
+        double hAfter = frames.get(index + 1).tick() - frames.get(index).tick();
+        double w1 = 2.0 * hAfter + hBefore, w2 = hAfter + 2.0 * hBefore;
+        return (w1 + w2) / (w1 / before + w2 / after);
+    }
+
+    private static double secant(List<Frame> frames, int from, int to, int axis) {
+        return (coordinate(frames.get(to), axis) - coordinate(frames.get(from), axis))
+                / (frames.get(to).tick() - frames.get(from).tick());
+    }
+
+    private static double coordinate(Frame frame, int axis) {
+        return switch (axis) { case 0 -> frame.x(); case 1 -> frame.y(); default -> frame.z(); };
+    }
+
+    private static float smoothstep(float t) { return t * t * (3.0f - 2.0f * t); }
+
+    private static float sceneEnvelope(double ticks, int duration) {
+        double ramp = Math.min(6.0, Math.max(0.5, duration / 2.0));
+        double in = smoothstep((float)Math.max(0.0, Math.min(1.0, ticks / ramp)));
+        double out = smoothstep((float)Math.max(0.0, Math.min(1.0, (duration - ticks) / ramp)));
+        return (float)Math.min(in, out);
     }
 
     private static double lerp(double a, double b, double t) { return a + (b - a) * t; }
@@ -83,7 +136,15 @@ public record SceneTrack(String runId, int entityId, int durationTicks, long loc
     public record Sample(double worldX, double worldY, double worldZ, float yaw, float pitch,
                          String animation, float ticks, float cameraYaw, float cameraPitch,
                          float cameraRoll, float cameraShake, float cameraFov,
-                         CameraMode cameraMode, float maxYawDegrees, float maxPitchDegrees, Pose pose) { }
+                         CameraMode cameraMode, float maxYawDegrees, float maxPitchDegrees, Pose pose,
+                         String nextAnimation, float animationBlend, float sceneBlend,
+                         boolean fromHasPose, boolean toHasPose) {
+        public Sample withSceneBlend(float blend) {
+            return new Sample(worldX, worldY, worldZ, yaw, pitch, animation, ticks, cameraYaw, cameraPitch,
+                    cameraRoll, cameraShake, cameraFov, cameraMode, maxYawDegrees, maxPitchDegrees, pose,
+                    nextAnimation, animationBlend, blend, fromHasPose, toHasPose);
+        }
+    }
 
     public record Bone(float x, float y, float z, float pitch, float yaw, float roll) {
         public Bone {

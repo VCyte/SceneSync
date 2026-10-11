@@ -17,6 +17,8 @@ public final class SceneController {
     private static final Pattern ANIMATION_ID = Pattern.compile("[a-z0-9][a-z0-9._:-]{0,95}");
     private static final Set<String> BUILT_IN_POSES = Set.of("idle", "walk", "run", "wave", "bow", "spin", "clap", "sit");
     private static final ConcurrentHashMap<Integer, SceneTrack> TRACKS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, PoseFade> POSE_FADES = new ConcurrentHashMap<>();
+    private static final long POSE_FADE_MILLIS = 200L;
     private SceneController() { }
 
     static Optional<JsonObject> parse(byte[] bytes) {
@@ -85,6 +87,7 @@ public final class SceneController {
             }
             TRACKS.put(entityId, new SceneTrack(runId, entityId, duration, localStart,
                     originX, originY, originZ, originYaw, cameraControl, List.copyOf(frames)));
+            POSE_FADES.remove(entityId);
             return true;
         } catch (RuntimeException ignored) { return false; }
     }
@@ -94,7 +97,14 @@ public final class SceneController {
         int id = integer(json, "entityId", -1, 0, Integer.MAX_VALUE);
         String runId = string(json, "runId", 64);
         if (id < 0 || runId == null || !ID.matcher(runId).matches()) return;
-        TRACKS.computeIfPresent(id, (key, track) -> track.runId().equals(runId) ? null : track);
+        long now = System.currentTimeMillis();
+        TRACKS.computeIfPresent(id, (key, track) -> {
+            if (!track.runId().equals(runId)) return track;
+            SceneTrack.Sample last = track.sample(now);
+            if (last != null && last.sceneBlend() > 0.001f)
+                POSE_FADES.put(id, new PoseFade(last, now, last.sceneBlend()));
+            return null;
+        });
     }
 
     public static SceneTrack.Sample sample(int entityId, long now) {
@@ -106,6 +116,21 @@ public final class SceneController {
         return sample;
     }
 
+    /** Rendering-only tail used after early STOP; movement and camera controllers use sample(). */
+    public static SceneTrack.Sample visualSample(int entityId, long now) {
+        SceneTrack.Sample active = sample(entityId, now);
+        if (active != null) return active;
+        PoseFade fade = POSE_FADES.get(entityId);
+        if (fade == null) return null;
+        float t = Math.max(0.0f, Math.min(1.0f, (now - fade.startedAtMillis()) / (float)POSE_FADE_MILLIS));
+        if (t >= 1.0f) {
+            POSE_FADES.remove(entityId, fade);
+            return null;
+        }
+        float smooth = t * t * (3.0f - 2.0f * t);
+        return fade.sample().withSceneBlend(fade.startBlend() * (1.0f - smooth));
+    }
+
     public static boolean controlsInput(int entityId, long now) {
         SceneTrack track = TRACKS.get(entityId);
         if (track == null) return false;
@@ -115,7 +140,7 @@ public final class SceneController {
         return false;
     }
 
-    static void clear() { TRACKS.clear(); }
+    static void clear() { TRACKS.clear(); POSE_FADES.clear(); }
     static int activeTracks() { return TRACKS.size(); }
 
     private static SceneTrack.Pose parsePose(JsonElement element) {
@@ -176,4 +201,6 @@ public final class SceneController {
         }
         return !quoted && depth == 0;
     }
+
+    private record PoseFade(SceneTrack.Sample sample, long startedAtMillis, float startBlend) { }
 }

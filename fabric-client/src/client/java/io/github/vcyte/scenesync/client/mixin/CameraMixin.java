@@ -5,6 +5,7 @@ import io.github.vcyte.scenesync.client.SceneCameraMath;
 import io.github.vcyte.scenesync.client.SceneTrack;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
@@ -83,13 +84,18 @@ public abstract class CameraMixin {
                     float limitedTargetYaw = wrapDegrees(sample.yaw() + centerYaw);
                     float limitedTargetPitch = clamp(sample.pitch() + centerPitch, -90.0f, 90.0f);
                     if (!scenesync$limitedActive || scenesync$cameraEntityId != cameraEntity.getId()) {
-                        scenesync$userYawOffset = wrapDegrees(localPlayer.getYRot() - limitedTargetYaw);
-                        scenesync$userPitchOffset = localPlayer.getXRot() - limitedTargetPitch;
+                        scenesync$userYawOffset = SceneCameraMath.clampUserOffset(
+                                wrapDegrees(localPlayer.getYRot() - limitedTargetYaw), centerYaw, maxYaw);
+                        scenesync$userPitchOffset = SceneCameraMath.clampUserOffset(
+                                localPlayer.getXRot() - limitedTargetPitch, centerPitch, maxPitch);
                         scenesync$limitedActive = true;
                     } else {
-                        scenesync$userYawOffset = wrapDegrees(scenesync$userYawOffset
-                                + wrapDegrees(localPlayer.getYRot() - scenesync$lastAppliedYaw));
-                        scenesync$userPitchOffset += localPlayer.getXRot() - scenesync$lastAppliedPitch;
+                        scenesync$userYawOffset = SceneCameraMath.clampUserOffset(
+                                scenesync$userYawOffset + wrapDegrees(localPlayer.getYRot() - scenesync$lastAppliedYaw),
+                                centerYaw, maxYaw);
+                        scenesync$userPitchOffset = SceneCameraMath.clampUserOffset(
+                                scenesync$userPitchOffset + localPlayer.getXRot() - scenesync$lastAppliedPitch,
+                                centerPitch, maxPitch);
                     }
                     scenesync$cameraEntityId = cameraEntity.getId();
                     SceneCameraMath.Look limited = SceneCameraMath.limitedLook(sample.yaw(), sample.pitch(),
@@ -104,12 +110,14 @@ public abstract class CameraMixin {
                 localPlayer.setXRot(pitch);
                 scenesync$lastAppliedYaw = yaw;
                 scenesync$lastAppliedPitch = pitch;
-                float shake = Math.min(1.0f, sample.cameraShake());
+                boolean mirrored = Minecraft.getInstance().options.getCameraType().isMirrored();
+                SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(yaw, pitch, mirrored);
+                float shake = Math.min(1.0f, sample.cameraShake()) * sample.sceneBlend();
                 float phase = sample.ticks() * 2.7f + cameraEntity.getId() * 0.17f;
-                float shakenYaw = yaw + (float)Math.sin(phase) * shake * 0.12f;
-                float shakenPitch = pitch + (float)Math.cos(phase * 0.83f) * shake * 0.10f;
+                float shakenYaw = cameraLook.yaw() + (float)Math.sin(phase) * shake * 0.12f;
+                float shakenPitch = cameraLook.pitch() + (float)Math.cos(phase * 0.83f) * shake * 0.10f;
                 setRotation(shakenYaw, shakenPitch);
-                float roll = clamp(sample.cameraRoll(), -6.0f, 6.0f);
+                float roll = clamp(sample.cameraRoll(), -6.0f, 6.0f) * sample.sceneBlend();
                 if (roll != 0.0f) ((Camera)(Object)this).rotation().rotateZ((float)Math.toRadians(roll));
             } else {
                 scenesync$wasLocked = false;
@@ -118,7 +126,7 @@ public abstract class CameraMixin {
             }
         }
         // Rotation is only scripted for the local actor; compatible viewers keep their own camera.
-        fov = Math.max(30.0f, Math.min(110.0f, fov + sample.cameraFov()));
+        fov = Math.max(30.0f, Math.min(110.0f, fov + sample.cameraFov() * sample.sceneBlend()));
     }
 
     @Unique private static float clamp(float value, float min, float max) {

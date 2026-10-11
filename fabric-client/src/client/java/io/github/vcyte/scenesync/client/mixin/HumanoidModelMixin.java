@@ -16,7 +16,7 @@ public abstract class HumanoidModelMixin {
     @Inject(method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/HumanoidRenderState;)V", at = @At("TAIL"))
     private void scenesync$applyScenePose(HumanoidRenderState state, CallbackInfo ci) {
         if (!(state instanceof AvatarRenderState avatarState)) return;
-        SceneTrack.Sample sample = SceneController.sample(avatarState.id, System.currentTimeMillis());
+        SceneTrack.Sample sample = SceneController.visualSample(avatarState.id, System.currentTimeMillis());
         if (sample != null) ScenePose.apply((HumanoidModel<?>)(Object)this, sample);
     }
 }

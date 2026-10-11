@@ -48,6 +48,32 @@ class SceneControllerTest {
         assertFalse(SceneController.acceptPlay(packet(2_100_003, start, 1, invalidTransform), 0));
     }
 
+    @Test void earlyStopUnlocksMovementImmediatelyButFadesTheFrozenPose() {
+        int entityId = 2_100_004;
+        long now = System.currentTimeMillis();
+        long start = now - 500;
+        JsonArray frames = new JsonArray();
+        frames.add(frame(0, "example:charge", 0, -60.0f));
+        frames.add(frame(36, "example:charge", 0, -60.0f));
+        assertTrue(SceneController.acceptPlay(packet(entityId, start, 36, frames), 0));
+        SceneTrack.Sample before = SceneController.sample(entityId, now);
+        assertNotNull(before);
+        assertTrue(before.sceneBlend() > 0.99f);
+
+        JsonObject stop = new JsonObject();
+        stop.addProperty("protocol", 3);
+        stop.addProperty("entityId", entityId);
+        stop.addProperty("runId", "pluginpose" + entityId);
+        SceneController.stop(stop);
+
+        assertFalse(SceneController.controlsInput(entityId, now));
+        SceneTrack.Sample fading = SceneController.visualSample(entityId, now + 100);
+        assertNotNull(fading);
+        assertEquals(before.pose(), fading.pose());
+        assertTrue(fading.sceneBlend() > 0.0f && fading.sceneBlend() < before.sceneBlend());
+        assertEquals(null, SceneController.visualSample(entityId, now + 500));
+    }
+
     private static JsonObject packet(int entityId, long start, int duration, JsonArray frames) {
         JsonObject packet = new JsonObject();
         packet.addProperty("protocol", 3);
