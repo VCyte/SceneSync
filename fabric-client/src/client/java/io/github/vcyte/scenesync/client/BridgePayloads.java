@@ -16,6 +16,7 @@ public final class BridgePayloads {
         PayloadTypeRegistry.serverboundPlay().register(Hello.TYPE, Hello.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(Hello.TYPE, Hello.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(Play.TYPE, Play.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(Update.TYPE, Update.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(Stop.TYPE, Stop.CODEC);
     }
 
@@ -43,6 +44,11 @@ public final class BridgePayloads {
     public record Play(byte[] data) implements CustomPacketPayload {
         public static final Type<Play> TYPE = new Type<>(SceneSyncClient.id("play"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Play> CODEC = raw(Play::data, Play::new);
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+    public record Update(byte[] data) implements CustomPacketPayload {
+        public static final Type<Update> TYPE = new Type<>(SceneSyncClient.id("update"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, Update> CODEC = raw(Update::data, Update::new);
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
     public record Stop(byte[] data) implements CustomPacketPayload {

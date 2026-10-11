@@ -84,6 +84,46 @@ sceneManager.register(scene);
 sceneManager.play(player, scene.id());
 ```
 
+## Live dynamic scenes
+
+For skills whose destination is calculated from a moving target, use `DynamicScene` instead of
+pre-authoring all keyframes. The provider runs on the Paper main thread once per server tick and
+returns one frame in the actor's **starting-position / starting-facing coordinate basis**. SceneSync
+streams a bounded rolling window to compatible clients, interpolates between received frames, checks
+each new segment for collision, and validates movement packets against the latest dynamic path.
+
+```java
+SceneManager manager = Bukkit.getServicesManager().load(SceneManager.class);
+Player target = Bukkit.getPlayerExact("Target");
+
+DynamicScene attack = new DynamicScene("myplugin:homing-strike", 30, context -> {
+    Player actor = context.actor();
+    Location origin = context.origin();
+    Location targetLocation = target.getLocation();
+    Vector toTarget = targetLocation.toVector().subtract(actor.getLocation().toVector());
+    Vector behind = targetLocation.toVector().subtract(targetLocation.getDirection().normalize().multiply(2.0));
+    Vector relative = behind.subtract(origin.toVector());
+
+    // Convert world delta into the actor's starting-facing local basis.
+    double radians = Math.toRadians(origin.getYaw());
+    double x = relative.getX() * Math.cos(radians) + relative.getZ() * Math.sin(radians);
+    double z = -relative.getX() * Math.sin(radians) + relative.getZ() * Math.cos(radians);
+    float yaw = (float) Math.toDegrees(Math.atan2(-toTarget.getX(), toTarget.getZ())) - origin.getYaw();
+    return new SceneFrame(context.tick(), x, relative.getY(), z, yaw, 0,
+            "myplugin:homing_strike", 0, 0, 0, 0, 0, slashPose);
+});
+
+DynamicSceneHandle handle = manager.playDynamic(actor, attack);
+// Later, from the Paper thread: handle.stop();
+```
+
+The provider must be fast and must return a frame whose `tick()` equals `context.tick()`.
+Do not perform asynchronous Bukkit access or expensive pathfinding inside it; calculate expensive
+data elsewhere and read a safe snapshot in the provider. A dynamic scene still has the normal
+duration, camera, damage, coordinate, pose, packet-size, and collision bounds. If the provider
+throws, returns an invalid frame, or the newly generated segment enters a blocked space, playback
+stops safely and viewers receive the normal stop/fade signal.
+
 Translations are bounded model-pixel offsets (each axis +/-8); rotations are degrees (+/-180). The client eases pose transitions, interpolates shortest-path Euler rotations, and returns to the current vanilla pose on scene end; early STOP and natural completion fade the rendered root to vanilla over 200 ms while movement/input control ends immediately. Frame yaw/pitch are offsets relative to the actor's initial facing and look pitch. Head overlays are additionally clamped after combining the animation and action-camera offsets (55° pitch, 65° yaw, 35° roll) relative to the vanilla look pose; oversized head keyframes are therefore safely limited at render time. Root facing eases into the first segment and across path corners. The six vanilla humanoid parts are head, body, arms and legs; their vanilla armor models and arm-attached held items inherit the transforms. This is a generic humanoid rig, not arbitrary mesh/bone/texture loading. Built-in convenience IDs (`idle`, `walk`, `run`, `wave`, `bow`, `spin`, `clap`, `sit`) remain optional legacy poses; new plugin motions should use namespaced IDs and provide pose data.
 
 The Thunderclap sample is available as `/scenesync play thunderclap-flash [player]`: it charges for 16 ticks, then moves 24 blocks over 6 ticks (4 blocks per server tick at peak), holds a finishing pose, and eases camera/FOV accents around the dash. Its charge/dash/finish transforms use `scenesync:...` IDs and generic pose payloads—not client-side lightning code. It uses `LOCKED` camera control and is cancelled by damage. Paper preflights the full actor-specific curve, including body-width and sub-tick collision samples, before sending it. If a wall intersects the path, clients receive a shortened safe track with a brace/recovery pose; path packets are matched to the shared curve rather than compared to lag-dependent straight-line movement deltas. This is a visual scripted move, not a damage/hitbox/combat system.

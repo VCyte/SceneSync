@@ -8,7 +8,7 @@ SceneSync is a separate project from SKM. A Paper plugin owns scene definitions,
 
 ## Project modules
 
-- `scenesync-api`: immutable, bounded scene timeline models and the plugin-facing `SceneManager` contract.
+- `scenesync-api`: immutable, bounded scene timeline models, low-level live `DynamicScene` streams, and the plugin-facing `SceneManager` contract.
 - `paper-plugin`: Paper runtime, permission-checked commands, bounded/versioned plugin-message bridge, actor movement, and lifecycle cleanup.
 - `fabric-client`: client-only Fabric mod for protocol handling, synchronized pose playback, and local camera motion.
 
@@ -57,7 +57,7 @@ scenes.register(sceneDefinition);
 scenes.play(player, "intro");
 ```
 
-See `docs/PLUGIN-DEVELOPMENT.md` for the exact current API and limitations, including per-animation damage policy.
+See `docs/PLUGIN-DEVELOPMENT.md` for the exact current API and limitations, including per-animation damage policy and live target-tracking `DynamicScene` providers.
 
 ## Compatibility and roadmap
 

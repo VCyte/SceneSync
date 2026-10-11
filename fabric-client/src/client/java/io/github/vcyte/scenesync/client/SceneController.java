@@ -17,6 +17,7 @@ public final class SceneController {
     private static final Pattern ANIMATION_ID = Pattern.compile("[a-z0-9][a-z0-9._:-]{0,95}");
     private static final Set<String> BUILT_IN_POSES = Set.of("idle", "walk", "run", "wave", "bow", "spin", "clap", "sit");
     private static final ConcurrentHashMap<Integer, SceneTrack> TRACKS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, String> DYNAMIC_RUNS = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Integer, PoseFade> POSE_FADES = new ConcurrentHashMap<>();
     private static final long POSE_FADE_MILLIS = 200L;
     private static int detachedLookEntity = -1;
@@ -39,6 +40,7 @@ public final class SceneController {
             int protocol = integer(json, "protocol", -1, 3, 3);
             int entityId = integer(json, "entityId", -1, 0, Integer.MAX_VALUE);
             int duration = integer(json, "durationTicks", -1, 1, 24_000);
+            boolean dynamic = json.has("dynamic") && json.get("dynamic").getAsBoolean();
             String runId = string(json, "runId", 64);
             long serverStart = longValue(json, "startAtMillis", -1, 0, Long.MAX_VALUE);
             long now = System.currentTimeMillis();
@@ -78,7 +80,7 @@ public final class SceneController {
                         cameraYaw, cameraPitch, cameraRoll, shake, cameraFov, pose));
                 previous = tick;
             }
-            if (frames.getFirst().tick() != 0) return false;
+            if (!dynamic && frames.getFirst().tick() != 0) return false;
             SceneTrack.CameraControl cameraControl = SceneTrack.CameraControl.DEFAULT;
             if (json.has("cameraControl")) {
                 if (!json.get("cameraControl").isJsonObject()) return false;
@@ -92,10 +94,44 @@ public final class SceneController {
             }
             TRACKS.put(entityId, new SceneTrack(runId, entityId, duration, localStart,
                     originX, originY, originZ, originYaw, originPitch, cameraControl, List.copyOf(frames)));
+            if (dynamic) DYNAMIC_RUNS.put(entityId, runId); else DYNAMIC_RUNS.remove(entityId);
             POSE_FADES.remove(entityId);
             if (detachedLookEntity == entityId) detachedLookEntity = -1;
             return true;
         } catch (RuntimeException ignored) { return false; }
+    }
+
+    /** Append one bounded live frame to the dynamic scene's rolling timeline. */
+    static void acceptDynamicUpdate(JsonObject json) {
+        try {
+            if (integer(json, "protocol", -1, 3, 3) != 3) return;
+            int entityId = integer(json, "entityId", -1, 0, Integer.MAX_VALUE);
+            String runId = string(json, "runId", 64);
+            JsonObject raw = json.has("frame") && json.get("frame").isJsonObject()
+                    ? json.getAsJsonObject("frame") : null;
+            SceneTrack current = TRACKS.get(entityId);
+            if (entityId < 0 || runId == null || raw == null || current == null
+                    || !runId.equals(DYNAMIC_RUNS.get(entityId)) || !current.runId().equals(runId)) return;
+            int tick = integer(raw, "tick", -1, 0, current.durationTicks());
+            if (tick <= current.frames().getLast().tick()) return;
+            String animation = string(raw, "animation", 96);
+            if (animation == null || !ANIMATION_ID.matcher(animation).matches()) return;
+            SceneTrack.Pose pose = raw.has("pose") ? parsePose(raw.get("pose")) : null;
+            if (!BUILT_IN_POSES.contains(animation) && pose == null) return;
+            SceneTrack.Frame next = new SceneTrack.Frame(tick,
+                    decimal(raw, "x", 0, -128, 128), decimal(raw, "y", 0, -128, 128),
+                    decimal(raw, "z", 0, -128, 128), (float)decimal(raw, "yaw", 0, -360, 360),
+                    (float)decimal(raw, "pitch", 0, -90, 90), animation,
+                    (float)decimal(raw, "cameraYaw", 0, -45, 45), (float)decimal(raw, "cameraPitch", 0, -45, 45),
+                    (float)decimal(raw, "cameraRoll", 0, -45, 45), (float)decimal(raw, "cameraShake", 0, 0, 10),
+                    (float)decimal(raw, "cameraFov", 0, -25, 25), pose);
+            java.util.ArrayList<SceneTrack.Frame> frames = new java.util.ArrayList<>(current.frames());
+            frames.add(next);
+            while (frames.size() > 96) frames.removeFirst();
+            TRACKS.replace(entityId, current, new SceneTrack(current.runId(), current.entityId(), current.durationTicks(),
+                    current.localStartMillis(), current.originX(), current.originY(), current.originZ(),
+                    current.originYaw(), current.originPitch(), current.cameraControl(), List.copyOf(frames)));
+        } catch (RuntimeException ignored) { }
     }
 
     static void stop(JsonObject json) {
@@ -112,6 +148,7 @@ public final class SceneController {
             if (last != null) POSE_FADES.put(id, new PoseFade(last, now, last.sceneBlend()));
             return null;
         });
+        DYNAMIC_RUNS.remove(id, runId);
     }
 
     public static SceneTrack.Sample sample(int entityId, long now) {
@@ -120,6 +157,7 @@ public final class SceneController {
         SceneTrack.Sample sample = track.sample(now);
         if (sample == null && now >= track.localStartMillis() + (long) track.durationTicks() * 50L) {
             TRACKS.remove(entityId, track);
+            DYNAMIC_RUNS.remove(entityId, track.runId());
             beginNaturalFade(entityId, track, now);
         }
         return sample;
@@ -201,7 +239,7 @@ public final class SceneController {
         }
     }
 
-    static void clear() { TRACKS.clear(); POSE_FADES.clear(); detachedLookEntity = -1; }
+    static void clear() { TRACKS.clear(); DYNAMIC_RUNS.clear(); POSE_FADES.clear(); detachedLookEntity = -1; }
     static int activeTracks() { return TRACKS.size(); }
 
     public record VisualFade(SceneTrack.Sample sample, float rootWeight) { }

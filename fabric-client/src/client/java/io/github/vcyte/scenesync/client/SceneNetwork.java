@@ -14,7 +14,8 @@ import java.util.concurrent.atomic.AtomicLong;
 final class SceneNetwork {
     private static final int PROTOCOL = 3;
     private static final long WINDOW_NANOS = 10_000_000_000L;
-    private static final int MAX_PACKETS_PER_WINDOW = 64;
+    // Dynamic scenes send the current and one look-ahead frame every server tick.
+    private static final int MAX_PACKETS_PER_WINDOW = 512;
     private static final Pattern SESSION = Pattern.compile("[a-f0-9]{32}");
     private final AtomicLong windowStart = new AtomicLong(System.nanoTime());
     private int windowCount;
@@ -29,6 +30,8 @@ final class SceneNetwork {
                 (payload, context) -> receive(payload.data(), context.client(), this::handshake, false));
         ClientPlayNetworking.registerGlobalReceiver(BridgePayloads.Play.TYPE,
                 (payload, context) -> receive(payload.data(), context.client(), json -> SceneController.acceptPlay(json, serverOffsetMillis), true));
+        ClientPlayNetworking.registerGlobalReceiver(BridgePayloads.Update.TYPE,
+                (payload, context) -> receive(payload.data(), context.client(), SceneController::acceptDynamicUpdate, true));
         ClientPlayNetworking.registerGlobalReceiver(BridgePayloads.Stop.TYPE,
                 (payload, context) -> receive(payload.data(), context.client(), SceneController::stop, true));
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> client.execute(() -> {

@@ -20,6 +20,7 @@ import java.util.UUID;
 final class SceneBridge implements PluginMessageListener {
     static final String HELLO = "scenesync:hello";
     static final String PLAY = "scenesync:play";
+    static final String UPDATE = "scenesync:update";
     static final String STOP = "scenesync:stop";
     static final int PROTOCOL = 3;
     static final int MAX_PACKET_BYTES = 64 * 1024;
@@ -34,6 +35,7 @@ final class SceneBridge implements PluginMessageListener {
         messenger.registerIncomingPluginChannel(plugin, HELLO, this);
         messenger.registerOutgoingPluginChannel(plugin, HELLO);
         messenger.registerOutgoingPluginChannel(plugin, PLAY);
+        messenger.registerOutgoingPluginChannel(plugin, UPDATE);
         messenger.registerOutgoingPluginChannel(plugin, STOP);
     }
 
@@ -69,6 +71,11 @@ final class SceneBridge implements PluginMessageListener {
 
     void sendPlay(Player viewer, Player actor, String runId, long startAtMillis, SceneDefinition scene,
                   org.bukkit.Location origin) {
+        sendPlay(viewer, actor, runId, startAtMillis, scene, origin, false);
+    }
+
+    void sendPlay(Player viewer, Player actor, String runId, long startAtMillis, SceneDefinition scene,
+                  org.bukkit.Location origin, boolean dynamic) {
         Session session = sessions.get(viewer.getUniqueId());
         if (session == null) return;
         JsonObject packet = new JsonObject();
@@ -77,6 +84,7 @@ final class SceneBridge implements PluginMessageListener {
         packet.addProperty("runId", runId);
         packet.addProperty("entityId", actor.getEntityId());
         packet.addProperty("scene", scene.id());
+        packet.addProperty("dynamic", dynamic);
         packet.addProperty("durationTicks", scene.durationTicks());
         packet.addProperty("startAtMillis", startAtMillis);
         packet.addProperty("originX", origin.getX());
@@ -104,6 +112,31 @@ final class SceneBridge implements PluginMessageListener {
         }
         packet.add("frames", frames);
         send(viewer, PLAY, packet);
+    }
+
+    void sendDynamicFrame(Player viewer, Player actor, String runId, SceneFrame frame) {
+        Session session = sessions.get(viewer.getUniqueId());
+        if (session == null) return;
+        JsonObject packet = new JsonObject();
+        packet.addProperty("protocol", PROTOCOL);
+        packet.addProperty("session", session.token());
+        packet.addProperty("runId", runId);
+        packet.addProperty("entityId", actor.getEntityId());
+        packet.add("frame", encodeFrame(frame));
+        send(viewer, UPDATE, packet);
+    }
+
+    private static JsonObject encodeFrame(SceneFrame frame) {
+        JsonObject f = new JsonObject();
+        f.addProperty("tick", frame.tick()); f.addProperty("x", frame.x());
+        f.addProperty("y", frame.y()); f.addProperty("z", frame.z());
+        f.addProperty("yaw", frame.yaw()); f.addProperty("pitch", frame.pitch());
+        f.addProperty("animation", frame.animation());
+        f.addProperty("cameraYaw", frame.cameraYaw()); f.addProperty("cameraPitch", frame.cameraPitch());
+        f.addProperty("cameraRoll", frame.cameraRoll()); f.addProperty("cameraShake", frame.cameraShake());
+        f.addProperty("cameraFov", frame.cameraFov());
+        if (frame.pose() != null) f.add("pose", encodePose(frame.pose()));
+        return f;
     }
 
     private static JsonArray encodePose(ModelPose pose) {

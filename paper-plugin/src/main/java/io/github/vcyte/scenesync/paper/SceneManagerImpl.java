@@ -8,6 +8,9 @@ import io.github.vcyte.scenesync.api.SceneCameraSettings;
 import io.github.vcyte.scenesync.api.BonePose;
 import io.github.vcyte.scenesync.api.ModelPose;
 import io.github.vcyte.scenesync.api.SceneManager;
+import io.github.vcyte.scenesync.api.DynamicScene;
+import io.github.vcyte.scenesync.api.DynamicSceneContext;
+import io.github.vcyte.scenesync.api.DynamicSceneHandle;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -25,6 +28,7 @@ final class SceneManagerImpl implements SceneManager {
     private final Map<String, SceneDefinition> configured = new LinkedHashMap<>();
     private final Map<String, SceneDefinition> registered = new LinkedHashMap<>();
     private final Map<UUID, ActiveScene> active = new HashMap<>();
+    private final Map<UUID, DynamicRun> dynamicActive = new HashMap<>();
     private double viewDistance = 64.0;
 
     SceneManagerImpl(SceneSyncPlugin plugin, SceneBridge bridge) { this.plugin = plugin; this.bridge = bridge; }
@@ -141,6 +145,36 @@ final class SceneManagerImpl implements SceneManager {
             throw new IllegalStateException("SceneSync API scene limit reached");
         registered.put(definition.id(), definition);
     }
+
+    @Override public DynamicSceneHandle playDynamic(Player actor, DynamicScene scene) {
+        requireMainThread(); Objects.requireNonNull(actor, "actor"); Objects.requireNonNull(scene, "scene");
+        if (!actor.isOnline() || actor.isDead() || actor.isInsideVehicle()
+                || actor.getGameMode() == org.bukkit.GameMode.SPECTATOR || !bridge.isCompatible(actor))
+            throw new IllegalArgumentException("actor is not eligible for a dynamic scene");
+        stop(actor);
+        Location origin = actor.getLocation().clone();
+        long start = System.currentTimeMillis() + START_LEAD_MILLIS;
+        SceneFrame first = dynamicFrame(scene, actor, origin, 0, start);
+        SceneDefinition shell = new SceneDefinition(scene.id(), scene.durationTicks(), List.of(first),
+                scene.damagePolicy(), scene.animationDamagePolicies(), scene.cameraSettings());
+        DynamicRun run = new DynamicRun(UUID.randomUUID().toString().replace("-", ""), actor, scene, shell, origin, start);
+        run.frames.put(0, first);
+        dynamicActive.put(actor.getUniqueId(), run);
+        for (Player viewer : actor.getWorld().getPlayers()) {
+            if (viewer.getLocation().distanceSquared(origin) <= viewDistance * viewDistance && bridge.isCompatible(viewer)) {
+                bridge.sendPlay(viewer, actor, run.runId, start, shell, origin, true);
+                run.viewers.add(viewer.getUniqueId());
+            }
+        }
+        return new DynamicHandle(run);
+    }
+
+    private static SceneFrame dynamicFrame(DynamicScene scene, Player actor, Location origin, int tick, long time) {
+        SceneFrame frame = scene.provider().frame(new DynamicSceneContext(actor, origin, tick, time));
+        if (frame == null || frame.tick() != tick)
+            throw new IllegalArgumentException("dynamic provider must return a frame for tick " + tick);
+        return frame;
+    }
     @Override public boolean unregister(String id) { requireMainThread(); return registered.remove(id) != null; }
     @Override public Set<String> sceneIds() {
         requireMainThread();
@@ -207,6 +241,43 @@ final class SceneManagerImpl implements SceneManager {
             run.elapsedTicks = timelineTick;
             if (run.elapsedTicks % 10 == 0) syncNewViewers(run);
         }
+        for (DynamicRun run : new ArrayList<>(dynamicActive.values())) {
+            if (!run.actor.isOnline() || run.actor.isDead() || run.actor.isInsideVehicle()
+                    || !run.actor.getWorld().equals(run.origin.getWorld())) { stopDynamic(run); continue; }
+            long now = System.currentTimeMillis();
+            if (now < run.startAtMillis) continue;
+            int tick = (int)((now - run.startAtMillis) / 50L);
+            if (tick > run.scene.durationTicks()) { stopDynamic(run); continue; }
+            for (int next = tick; next <= Math.min(run.scene.durationTicks(), tick + 1); next++) {
+                if (run.frames.containsKey(next)) continue;
+                SceneFrame frame;
+                try { frame = dynamicFrame(run.scene, run.actor, run.origin, next, run.startAtMillis + next * 50L); }
+                catch (RuntimeException failure) { stopDynamic(run); frame = null; }
+                if (frame == null) break;
+                SceneFrame previous = run.frames.isEmpty() ? null : run.frames.lastEntry().getValue();
+                if (previous != null && !sweptSafe(dynamicLocation(run.origin, previous), dynamicLocation(run.origin, frame))) {
+                    stopDynamic(run); break;
+                }
+                run.frames.put(next, frame);
+                while (run.frames.size() > 96) run.frames.pollFirstEntry();
+                for (UUID viewerId : run.viewers) {
+                    Player viewer = Bukkit.getPlayer(viewerId);
+                    if (viewer != null && viewer.isOnline()) bridge.sendDynamicFrame(viewer, run.actor, run.runId, frame);
+                }
+            }
+            syncDynamicViewers(run);
+        }
+    }
+
+    private void syncDynamicViewers(DynamicRun run) {
+        for (Player viewer : run.actor.getWorld().getPlayers()) {
+            if (run.viewers.contains(viewer.getUniqueId()) || !bridge.isCompatible(viewer)) continue;
+            if (viewer.getLocation().distanceSquared(run.actor.getLocation()) <= viewDistance * viewDistance) {
+                bridge.sendPlay(viewer, run.actor, run.runId, run.startAtMillis, run.shell, run.origin, true);
+                run.viewers.add(viewer.getUniqueId());
+                for (SceneFrame frame : run.frames.values()) bridge.sendDynamicFrame(viewer, run.actor, run.runId, frame);
+            }
+        }
     }
 
     /** Test the whole deterministic route before clients begin moving, then publish a safe stop track. */
@@ -249,6 +320,24 @@ final class SceneManagerImpl implements SceneManager {
 
     boolean acceptClientMovement(Player actor, Location from, Location to) {
         ActiveScene run = active.get(actor.getUniqueId());
+        DynamicRun dynamic = dynamicActive.get(actor.getUniqueId());
+        if (run == null && dynamic != null) {
+            long now = System.currentTimeMillis();
+            int tick = (int)Math.max(0, Math.min(dynamic.scene.durationTicks(),
+                    (now - dynamic.startAtMillis) / 50L));
+            Map.Entry<Integer, SceneFrame> floor = dynamic.frames.floorEntry(tick);
+            SceneFrame frame = floor == null ? null : floor.getValue();
+            Map.Entry<Integer, SceneFrame> ceiling = dynamic.frames.ceilingEntry(tick);
+            SceneFrame next = ceiling == null ? frame : ceiling.getValue();
+            if (frame == null || to == null) return true;
+            Location expected = dynamicLocation(dynamic.origin, frame);
+            Location expectedNext = dynamicLocation(dynamic.origin, next);
+            if (to.distanceSquared(expected) <= 2.25 || to.distanceSquared(expectedNext) <= 2.25) {
+                dynamic.movementMismatches = 0; return true;
+            }
+            if (++dynamic.movementMismatches < 4) return true;
+            stopDynamic(dynamic); return true;
+        }
         if (run == null || to == null || !Bukkit.isPrimaryThread()) return true;
         if (to.getWorld() == null || !to.getWorld().equals(run.origin.getWorld())) {
             stopInternal(run);
@@ -278,9 +367,24 @@ final class SceneManagerImpl implements SceneManager {
         return true;
     }
 
+    private static Location dynamicLocation(Location origin, SceneFrame frame) {
+        double radians = Math.toRadians(origin.getYaw());
+        double worldX = frame.x() * Math.cos(radians) - frame.z() * Math.sin(radians);
+        double worldZ = frame.x() * Math.sin(radians) + frame.z() * Math.cos(radians);
+        return origin.clone().add(worldX, frame.y(), worldZ);
+    }
+
     void handleDamage(Player actor, org.bukkit.event.entity.EntityDamageEvent event) {
         requireMainThread();
         ActiveScene run = active.get(actor.getUniqueId());
+        DynamicRun dynamic = dynamicActive.get(actor.getUniqueId());
+        if (run == null && dynamic != null && event.getFinalDamage() > 0.0) {
+            SceneFrame frame = dynamic.frames.isEmpty() ? null : dynamic.frames.lastEntry().getValue();
+            DamagePolicy policy = dynamic.scene.damagePolicyAt(frame == null ? "" : frame.animation());
+            if (policy == DamagePolicy.IGNORE_DAMAGE) event.setCancelled(true);
+            else stopDynamic(dynamic);
+            return;
+        }
         if (run == null || event.getFinalDamage() <= 0.0) return;
         long now = System.currentTimeMillis();
         int sceneTick = now <= run.startAtMillis ? 0
@@ -365,17 +469,33 @@ final class SceneManagerImpl implements SceneManager {
     @Override public boolean stop(Player actor) {
         requireMainThread();
         ActiveScene run = active.get(actor.getUniqueId());
-        if (run == null) return false;
-        stopInternal(run); return true;
+        if (run != null) { stopInternal(run); return true; }
+        DynamicRun dynamic = dynamicActive.get(actor.getUniqueId());
+        if (dynamic != null) { stopDynamic(dynamic); return true; }
+        return false;
     }
-    void stopAll() { for (ActiveScene run : new ArrayList<>(active.values())) stopInternal(run); }
+    void stopAll() {
+        for (ActiveScene run : new ArrayList<>(active.values())) stopInternal(run);
+        for (DynamicRun run : new ArrayList<>(dynamicActive.values())) stopDynamic(run);
+    }
     void removeViewer(Player viewer) {
         for (ActiveScene run : active.values()) run.viewers.remove(viewer.getUniqueId());
+        for (DynamicRun run : dynamicActive.values()) run.viewers.remove(viewer.getUniqueId());
     }
-    @Override public boolean isPlaying(Player actor) { return active.containsKey(actor.getUniqueId()); }
+    @Override public boolean isPlaying(Player actor) {
+        return active.containsKey(actor.getUniqueId()) || dynamicActive.containsKey(actor.getUniqueId());
+    }
 
     private void stopInternal(ActiveScene run) {
         if (!active.remove(run.actor.getUniqueId(), run)) return;
+        for (UUID id : run.viewers) {
+            Player viewer = Bukkit.getPlayer(id);
+            if (viewer != null && viewer.isOnline()) bridge.sendStop(viewer, run.actor.getEntityId(), run.runId);
+        }
+        run.viewers.clear();
+    }
+    private void stopDynamic(DynamicRun run) {
+        if (!dynamicActive.remove(run.actor.getUniqueId(), run)) return;
         for (UUID id : run.viewers) {
             Player viewer = Bukkit.getPlayer(id);
             if (viewer != null && viewer.isOnline()) bridge.sendStop(viewer, run.actor.getEntityId(), run.runId);
@@ -393,6 +513,26 @@ final class SceneManagerImpl implements SceneManager {
         int movementMismatches;
         ActiveScene(String runId, Player actor, SceneDefinition definition, Location origin, long startAtMillis) {
             this.runId = runId; this.actor = actor; this.definition = definition; this.origin = origin; this.startAtMillis = startAtMillis;
+        }
+    }
+
+    private final class DynamicHandle implements DynamicSceneHandle {
+        private final DynamicRun run;
+        private DynamicHandle(DynamicRun run) { this.run = run; }
+        @Override public String sceneId() { return run.scene.id(); }
+        @Override public Player actor() { return run.actor; }
+        @Override public boolean isActive() { return dynamicActive.get(run.actor.getUniqueId()) == run; }
+        @Override public boolean stop() { requireMainThread(); if (!isActive()) return false; stopDynamic(run); return true; }
+    }
+
+    private static final class DynamicRun {
+        final String runId; final Player actor; final DynamicScene scene; final SceneDefinition shell;
+        final Location origin; final long startAtMillis; final Set<UUID> viewers = new HashSet<>();
+        final NavigableMap<Integer, SceneFrame> frames = new TreeMap<>();
+        int movementMismatches;
+        DynamicRun(String runId, Player actor, DynamicScene scene, SceneDefinition shell, Location origin, long startAtMillis) {
+            this.runId = runId; this.actor = actor; this.scene = scene; this.shell = shell;
+            this.origin = origin; this.startAtMillis = startAtMillis;
         }
     }
 }
