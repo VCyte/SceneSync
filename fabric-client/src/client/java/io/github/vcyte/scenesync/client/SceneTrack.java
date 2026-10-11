@@ -3,14 +3,21 @@ package io.github.vcyte.scenesync.client;
 import java.util.List;
 
 public record SceneTrack(String runId, int entityId, int durationTicks, long localStartMillis,
-                         double originX, double originY, double originZ, float originYaw,
+                         double originX, double originY, double originZ, float originYaw, float originPitch,
                          CameraControl cameraControl, List<Frame> frames) {
     public SceneTrack { frames = List.copyOf(frames); }
 
     public SceneTrack(String runId, int entityId, int durationTicks, long localStartMillis,
                       double originX, double originY, double originZ, float originYaw, List<Frame> frames) {
-        this(runId, entityId, durationTicks, localStartMillis, originX, originY, originZ, originYaw,
+        this(runId, entityId, durationTicks, localStartMillis, originX, originY, originZ, originYaw, 0.0f,
                 CameraControl.DEFAULT, frames);
+    }
+
+    public SceneTrack(String runId, int entityId, int durationTicks, long localStartMillis,
+                      double originX, double originY, double originZ, float originYaw,
+                      CameraControl cameraControl, List<Frame> frames) {
+        this(runId, entityId, durationTicks, localStartMillis, originX, originY, originZ, originYaw,
+                0.0f, cameraControl, frames);
     }
 
     public Sample sample(long now) {
@@ -38,15 +45,9 @@ public record SceneTrack(String runId, int entityId, int durationTicks, long loc
         double radians = Math.toRadians(originYaw);
         double worldX = originX + x * Math.cos(radians) - z * Math.sin(radians);
         double worldZ = originZ + x * Math.sin(radians) + z * Math.cos(radians);
-        float yaw;
-        double dx = b.x() - a.x(), dz = b.z() - a.z();
-        if (Math.abs(dx) + Math.abs(dz) > 0.0001) {
-            double worldDx = dx * Math.cos(radians) - dz * Math.sin(radians);
-            double worldDz = dx * Math.sin(radians) + dz * Math.cos(radians);
-            yaw = (float)Math.toDegrees(Math.atan2(-worldDx, worldDz));
-        } else yaw = originYaw + lerp(a.yaw(), b.yaw(), t);
-        return new Sample(worldX, originY + y, worldZ, wrapDegrees(yaw),
-                lerp(a.pitch(), b.pitch(), eased), a.animation(), (float)ticks,
+        float yaw = facingYaw(frames, segment, ticks, a, b, originYaw, radians);
+        float pitch = Math.max(-90.0f, Math.min(90.0f, originPitch + lerp(a.pitch(), b.pitch(), eased)));
+        return new Sample(worldX, originY + y, worldZ, wrapDegrees(yaw), pitch, a.animation(), (float)ticks,
                 lerp(a.cameraYaw(), b.cameraYaw(), eased), lerp(a.cameraPitch(), b.cameraPitch(), eased),
                 lerp(a.cameraRoll(), b.cameraRoll(), eased), lerp(a.cameraShake(), b.cameraShake(), eased),
                 lerp(a.cameraFov(), b.cameraFov(), eased), cameraControl.mode(),
@@ -90,6 +91,47 @@ public record SceneTrack(String runId, int entityId, int durationTicks, long loc
 
     private static double coordinate(Frame frame, int axis) {
         return switch (axis) { case 0 -> frame.x(); case 1 -> frame.y(); default -> frame.z(); };
+    }
+
+    private static float facingYaw(List<Frame> frames, int segment, double tick, Frame a, Frame b,
+                                   float originYaw, double originRadians) {
+        float current = segmentFacing(frames, segment, tick, originYaw, originRadians);
+        if (segment == 0 && frames.size() > 1) {
+            float ramp = Math.min(3.0f, Math.max(1.0f, b.tick() - a.tick()));
+            float entry = smoothstep((float)Math.max(0.0, Math.min(1.0, tick / ramp)));
+            current = lerpAngle(originYaw, current, entry);
+        }
+        for (int i = 1; i < frames.size() - 1; i++) {
+            double keyTick = frames.get(i).tick();
+            double halfWindow = Math.min(1.5, Math.min(keyTick - frames.get(i - 1).tick(),
+                    frames.get(i + 1).tick() - keyTick) * 0.5);
+            if (tick < keyTick - halfWindow || tick > keyTick + halfWindow) continue;
+            float before = segmentFacing(frames, i - 1, keyTick - 1.0e-6, originYaw, originRadians);
+            float after = segmentFacing(frames, i, keyTick + 1.0e-6, originYaw, originRadians);
+            float turn = smoothstep((float)((tick - (keyTick - halfWindow)) / (2.0 * halfWindow)));
+            return lerpAngle(before, after, turn);
+        }
+        return current;
+    }
+
+    private static float segmentFacing(List<Frame> frames, int segment, double tick,
+                                       float originYaw, double originRadians) {
+        if (frames.size() == 1) return originYaw + frames.getFirst().yaw();
+        if (segment >= frames.size() - 1) segment = frames.size() - 2;
+        Frame a = frames.get(segment), b = frames.get(segment + 1);
+        double dx = b.x() - a.x(), dz = b.z() - a.z();
+        if (Math.abs(dx) + Math.abs(dz) > 0.0001) {
+            double worldDx = dx * Math.cos(originRadians) - dz * Math.sin(originRadians);
+            double worldDz = dx * Math.sin(originRadians) + dz * Math.cos(originRadians);
+            return (float)Math.toDegrees(Math.atan2(-worldDx, worldDz));
+        }
+        float t = (float)Math.max(0.0, Math.min(1.0,
+                (tick - a.tick()) / Math.max(1.0, b.tick() - a.tick())));
+        return originYaw + lerp(a.yaw(), b.yaw(), smoothstep(t));
+    }
+
+    private static float lerpAngle(float from, float to, float t) {
+        return from + wrapDegrees(to - from) * t;
     }
 
     private static float smoothstep(float t) { return t * t * (3.0f - 2.0f * t); }

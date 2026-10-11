@@ -20,6 +20,7 @@ final class SceneNetwork {
     private int windowCount;
     private volatile long serverOffsetMillis;
     private volatile String boundSession;
+    private long bestRttMillis = Long.MAX_VALUE;
     private int helloTicks;
     private int helloAttempts;
 
@@ -31,14 +32,16 @@ final class SceneNetwork {
         ClientPlayNetworking.registerGlobalReceiver(BridgePayloads.Stop.TYPE,
                 (payload, context) -> receive(payload.data(), context.client(), SceneController::stop, true));
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> client.execute(() -> {
-            boundSession = null; serverOffsetMillis = 0; helloAttempts = 0; helloTicks = 0; sendHello();
+            boundSession = null; serverOffsetMillis = 0; bestRttMillis = Long.MAX_VALUE;
+            helloAttempts = 0; helloTicks = 0; sendHello();
         }));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
-            SceneController.clear(); serverOffsetMillis = 0; boundSession = null; helloAttempts = 0; helloTicks = 0;
+            SceneController.clear(); serverOffsetMillis = 0; boundSession = null; bestRttMillis = Long.MAX_VALUE;
+            helloAttempts = 0; helloTicks = 0;
             windowCount = 0; windowStart.set(System.nanoTime());
         }));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client.player == null || boundSession != null || helloAttempts >= 5) return;
+            if (client.player == null || helloAttempts >= 5) return;
             if (helloTicks-- <= 0) sendHello();
         });
     }
@@ -73,7 +76,8 @@ final class SceneNetwork {
             ClientPlayNetworking.send(new BridgePayloads.Hello(hello.toString().getBytes(StandardCharsets.UTF_8)));
         } catch (IllegalStateException ignored) { }
         helloAttempts++;
-        helloTicks = 40;
+        // The server rate-limits to five probes per ten seconds; collect the whole batch at join.
+        helloTicks = 0;
     }
 
     private void handshake(JsonObject json) {
@@ -81,13 +85,22 @@ final class SceneNetwork {
         if (json.has("protocol") && json.get("protocol").getAsInt() == PROTOCOL
                 && json.has("clientTime") && json.has("serverTime") && json.has("session")) {
             long echoed = json.get("clientTime").getAsLong();
-            long server = json.get("serverTime").getAsLong();
+            long serverSent = json.get("serverTime").getAsLong();
+            long serverReceived = json.has("serverReceiveTime")
+                    ? json.get("serverReceiveTime").getAsLong() : serverSent;
             long received = System.currentTimeMillis();
             String session = json.get("session").getAsString();
             if (!SESSION.matcher(session).matches() || (boundSession != null && !boundSession.equals(session))) return;
             if (echoed >= received - 60_000 && echoed <= received + 60_000
-                    && server >= received - 86_400_000 && server <= received + 86_400_000)
-                { serverOffsetMillis = server - ((echoed + received) / 2L); boundSession = session; }
+                    && serverSent >= received - 86_400_000 && serverSent <= received + 86_400_000
+                    && serverReceived <= serverSent) {
+                long rtt = SceneClockMath.networkRoundTrip(echoed, received, serverReceived, serverSent);
+                if (SceneClockMath.isBetterSample(rtt, bestRttMillis)) {
+                    bestRttMillis = rtt;
+                    serverOffsetMillis = SceneClockMath.estimateOffset(echoed, received, serverReceived, serverSent);
+                }
+                boundSession = session;
+            }
         }
         } catch (RuntimeException ignored) { }
     }

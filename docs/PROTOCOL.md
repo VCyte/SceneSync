@@ -23,17 +23,17 @@ Client sends on `scenesync:hello`:
 {"protocol":3,"clientTime":1780000000000}
 ```
 
-Server replies on the same channel with the echoed client time, server time, and a fresh per-player 128-bit random session token:
+Server replies on the same channel with the echoed client time, server receive/send times, and a fresh per-player 128-bit random session token. Existing protocol-v3 servers that omit `serverReceiveTime` remain readable by the client:
 
 ```json
-{"protocol":3,"clientTime":1780000000000,"serverTime":1780000000012,"session":"32-lowercase-hex-characters"}
+{"protocol":3,"clientTime":1780000000000,"serverReceiveTime":1780000000011,"serverTime":1780000000012,"session":"32-lowercase-hex-characters"}
 ```
 
-The client estimates clock offset from the round trip for a shared start time. The session token rejects packets left over from an earlier connection. It is not a cryptographic server signature; the connected Minecraft server is necessarily the authority for server-to-client scene visuals.
+The client sends up to five short probes after joining, estimates offset with both client and server send/receive timestamps, and retains the lowest network-RTT sample. The scene uses a 100 ms shared start lead. The session token rejects packets left over from an earlier connection. It is not a cryptographic server signature; the connected Minecraft server is necessarily the authority for server-to-client scene visuals.
 
 ## Play packet
 
-`scenesync:play` includes `protocol`, `session`, `runId`, `entityId`, `scene`, `durationTicks`, `startAtMillis`, the actor origin (`originX`, `originY`, `originZ`, `originYaw`), `cameraControl`, and `frames`. Before broadcast, Paper preflights the actor-specific fixed path against world collision. A blocked path is replaced by a safe prefix and short generic brace/recovery timeline; all viewers receive that same planned origin and curve. The actor client samples actor-local positions using the same shape-preserving cubic interpolation as Paper, and sends ordinary movement packets. Paper matches packets against fractional points in a bounded-latency window rather than sweeping potentially lag-separated `from` and `to` locations; it still checks the planned route at sub-tick resolution and actor width. Significant deviation or unsafe geometry stops playback. Compatible viewers render from the same synchronized start time.
+`scenesync:play` includes `protocol`, `session`, `runId`, `entityId`, `scene`, `durationTicks`, `startAtMillis`, the actor origin (`originX`, `originY`, `originZ`, `originYaw`, `originPitch`), `cameraControl`, and `frames`. `originPitch` is optional for compatibility with earlier protocol-v3 servers and defaults to zero. Frame yaw/pitch are offsets from the actor's initial orientation; a neutral pitch frame therefore preserves the actor's starting look instead of leveling it. Root facing eases into motion and around direction-changing keyframes. Before broadcast, Paper preflights the actor-specific fixed path against world collision. A blocked path is replaced by a safe prefix and short generic brace/recovery timeline; all viewers receive that same planned origin and curve. The actor client samples actor-local positions using the same shape-preserving cubic interpolation as Paper, and sends ordinary movement packets. Paper matches packets against fractional points in a bounded-latency window rather than sweeping potentially lag-separated `from` and `to` locations; it still checks the planned route at sub-tick resolution and actor width. On stop or natural completion, the renderer smoothly hands the last root sample back to vanilla entity state over 200 ms while input unlocks immediately. Significant deviation or unsafe geometry stops playback. Compatible viewers render from the same synchronized start time.
 
 ## Stop packet
 

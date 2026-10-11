@@ -19,6 +19,7 @@ import java.util.*;
 final class SceneManagerImpl implements SceneManager {
     private static final int MAX_CONFIG_SCENES = 64;
     private static final int MAX_API_SCENES = 128;
+    private static final long START_LEAD_MILLIS = 100L;
     private final SceneSyncPlugin plugin;
     private final SceneBridge bridge;
     private final Map<String, SceneDefinition> configured = new LinkedHashMap<>();
@@ -159,7 +160,7 @@ final class SceneManagerImpl implements SceneManager {
         SceneDefinition planned = planCollisionSafePath(scene, origin);
         if (planned == null) return false;
         ActiveScene run = new ActiveScene(UUID.randomUUID().toString().replace("-", ""), actor,
-                planned, origin, System.currentTimeMillis() + 500);
+                planned, origin, System.currentTimeMillis() + START_LEAD_MILLIS);
         active.put(actor.getUniqueId(), run);
         broadcastStart(run);
         return true;

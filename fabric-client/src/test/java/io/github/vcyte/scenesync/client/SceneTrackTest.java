@@ -111,6 +111,20 @@ class SceneTrackTest {
         assertEquals(0.5f, middle.animationBlend(), 1.0e-6f);
     }
 
+    @Test void actorFacingEasesInAndTurnsAcrossAPathCornerInsteadOfSnapping() {
+        SceneTrack turn = new SceneTrack("run-turn", 15, 20, 1_000,
+                0, 64, 0, 0, List.of(
+                frame(0, 0, 0, 0, 0), frame(10, 0, 0, 10, 0), frame(20, 10, 0, 10, 0)));
+        assertEquals(0.0f, turn.sample(1_000).yaw(), 1.0e-4f);
+        assertEquals(-45.0f, turn.sample(1_500).yaw(), 0.1f);
+        assertEquals(-90.0f, turn.sample(1_600).yaw(), 0.1f);
+
+        SceneTrack turnAtStart = new SceneTrack("run-turn-entry", 16, 10, 1_000,
+                0, 64, 0, 0, List.of(frame(0, 0, 0, 0, 0), frame(10, 10, 0, 0, 0)));
+        assertEquals(0.0f, turnAtStart.sample(1_000).yaw(), 1.0e-4f);
+        assertEquals(-90.0f, turnAtStart.sample(1_150).yaw(), 0.1f);
+    }
+
     private static SceneTrack.Frame frame(int tick, double x, double y, double z, float yaw) {
         return new SceneTrack.Frame(tick, x, y, z, yaw, 0, "walk", 0, 0, 0, 0);
     }

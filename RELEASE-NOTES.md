@@ -1,14 +1,14 @@
-# SceneSync 0.1.2 corrective development preview
+# SceneSync 0.1.3 corrective development preview
 
 Minecraft 26.2 / Java 25 / Paper 26.2 / Fabric protocol v3. Replace the Paper plugin and Fabric client mod together.
 
-## Visual and movement corrections
+## Start, facing, and handoff fixes
 
-- Scripted head-bone rotations and camera aim were accumulating independently. The renderer now clamps their combined overlay relative to the vanilla head pose: at most 55° pitch, 65° yaw, and 35° roll. Normal vanilla head look is preserved; extreme custom keyframes cannot turn into a neck flip.
-- Different movement packet timing could trigger a false stop: Paper checked the straight line from its possibly delayed `from` location to the current `to` location, including a 16-block maximum. That segment does not describe the shared cubic scene curve. Scene packets are now validated against the planned timeline; path safety is checked on the scene curve itself.
-- Paper now checks an actor's entire fixed path against collision geometry before broadcasting the play packet. When a static obstruction is found, it publishes a per-actor safe-prefix track that holds before the wall, braces, and returns toward a neutral pose. The client is no longer instructed to dash through a known wall and then corrected backward. Viewers who join late now receive the original anchored origin as well.
-- The existing runtime world/path checks remain as a guard against a route becoming unsafe after startup.
+- **Found a concrete start-of-scene head snap:** play packets carried origin yaw but not origin pitch. The renderer then used a neutral keyframe pitch of zero as an absolute pitch, forcing a player who was looking up or down toward horizontal. The packet now carries `originPitch`; frame pitch is applied as an offset from that initial look. Older protocol-v3 servers that omit the field remain accepted and default it to zero.
+- **Removed the avoidable 500 ms countdown.** Scene playback now uses a 100 ms shared start lead. Clients send up to five join-time clock probes and choose the lowest-RTT NTP-style offset estimate; the server returns receive and send timestamps. Previous protocol-v3 handshake responses still work through a fallback.
+- Root facing now eases into the initial path direction and interpolates over a short window around direction-changing keyframes, rather than changing body yaw exactly at a keyframe. Existing cubic position and skeletal-pose easing remain in place.
+- The render-state mixin used to stop overriding position and rotation at track end in one frame. Early stop and natural completion now blend the final sampled root position, body/head facing, and pitch to vanilla entity state over the existing 200 ms visual tail. Input and scene movement control still end immediately; large teleports/world changes are not blended across.
 
-## Verification
+## Verification and limitation
 
-This patch adds deterministic tests for combined head-angle bounds, last-safe path holding, and brace/recovery timeline construction. Run `./gradlew --no-daemon clean test build` before distribution. Automated checks cannot replace live testing of Paper movement events, different ping/TPS conditions, actual block collision shapes, head rendering, and third-party mods; see `docs/TESTING.md` for that acceptance matrix.
+New tests cover starting-pitch preservation, eased root direction changes, clock offset math and sample selection, and natural-completion visual handoff. Run `./gradlew --no-daemon clean test build` before distribution. Automated tests cannot verify real camera/head rendering, multi-client latency, Paper corrections, or third-party mixin interactions. Please validate in-game with several initial view pitches and client RTTs; see `docs/TESTING.md`.

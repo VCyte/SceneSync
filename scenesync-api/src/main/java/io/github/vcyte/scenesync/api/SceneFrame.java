@@ -2,7 +2,7 @@ package io.github.vcyte.scenesync.api;
 
 import java.util.Set;
 
-/** A keyframe relative to the actor's location and yaw when playback begins. */
+/** A keyframe relative to the actor's location and yaw/pitch when playback begins. */
 public record SceneFrame(
         int tick,
         double x,

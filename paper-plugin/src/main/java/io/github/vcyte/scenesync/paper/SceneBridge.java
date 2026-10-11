@@ -49,14 +49,16 @@ final class SceneBridge implements PluginMessageListener {
         JsonObject request = parse(message);
         if (request == null || integer(request, "protocol", -1) != PROTOCOL) return;
         long clientTime = longNumber(request, "clientTime", -1);
-        long now = System.currentTimeMillis();
-        if (clientTime <= 0 || clientTime < now - 86_400_000L || clientTime > now + 86_400_000L) return;
+        long serverReceiveTime = System.currentTimeMillis();
+        if (clientTime <= 0 || clientTime < serverReceiveTime - 86_400_000L
+                || clientTime > serverReceiveTime + 86_400_000L) return;
         Session session = sessions.computeIfAbsent(player.getUniqueId(),
                 ignored -> new Session(UUID.randomUUID().toString().replace("-", ""), System.nanoTime()));
         JsonObject response = new JsonObject();
         response.addProperty("protocol", PROTOCOL);
         response.addProperty("clientTime", clientTime);
-        response.addProperty("serverTime", now);
+        response.addProperty("serverReceiveTime", serverReceiveTime);
+        response.addProperty("serverTime", System.currentTimeMillis());
         response.addProperty("session", session.token());
         send(player, HELLO, response);
         plugin.getLogger().fine("SceneSync client handshake accepted for " + player.getUniqueId());
@@ -81,6 +83,7 @@ final class SceneBridge implements PluginMessageListener {
         packet.addProperty("originY", origin.getY());
         packet.addProperty("originZ", origin.getZ());
         packet.addProperty("originYaw", origin.getYaw());
+        packet.addProperty("originPitch", origin.getPitch());
         JsonObject camera = new JsonObject();
         camera.addProperty("mode", scene.cameraSettings().mode().name());
         camera.addProperty("maxYawDegrees", scene.cameraSettings().maxYawDegrees());
