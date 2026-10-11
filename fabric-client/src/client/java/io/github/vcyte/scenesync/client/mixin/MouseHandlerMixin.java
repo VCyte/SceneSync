@@ -18,7 +18,24 @@ public abstract class MouseHandlerMixin {
     @Inject(method = "handleAccumulatedMovement()V", at = @At("HEAD"), cancellable = true)
     private void scenesync$discardLockedLookInput(CallbackInfo ci) {
         var player = Minecraft.getInstance().player;
-        if (player == null || !SceneController.blocksLook(player.getId(), System.currentTimeMillis())) return;
+        if (player == null) return;
+        long now = System.currentTimeMillis();
+        var minecraft = Minecraft.getInstance();
+        if (SceneController.usesDetachedLook(player.getId(), now)
+                && !minecraft.options.getCameraType().isFirstPerson()) {
+            double sensitivity = minecraft.options.sensitivity().get();
+            double scale = Math.pow(sensitivity * 0.6 + 0.2, 3.0) * 8.0;
+            double yaw = accumulatedDX * scale;
+            double pitch = accumulatedDY * scale;
+            if ((Boolean)minecraft.options.invertMouseX().get()) yaw = -yaw;
+            if ((Boolean)minecraft.options.invertMouseY().get()) pitch = -pitch;
+            SceneController.updateDetachedLook(player.getId(), yaw, pitch);
+            accumulatedDX = 0.0;
+            accumulatedDY = 0.0;
+            ci.cancel();
+            return;
+        }
+        if (!SceneController.blocksLook(player.getId(), now)) return;
         // Do not leave deltas queued: applying them on the first unlocked frame
         // would cause the post-scene head to jump and recreate the old flicker.
         accumulatedDX = 0.0;

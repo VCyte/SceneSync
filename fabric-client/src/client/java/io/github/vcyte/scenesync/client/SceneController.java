@@ -19,6 +19,9 @@ public final class SceneController {
     private static final ConcurrentHashMap<Integer, SceneTrack> TRACKS = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Integer, PoseFade> POSE_FADES = new ConcurrentHashMap<>();
     private static final long POSE_FADE_MILLIS = 200L;
+    private static int detachedLookEntity = -1;
+    private static float detachedLookYaw;
+    private static float detachedLookPitch;
     private SceneController() { }
 
     static Optional<JsonObject> parse(byte[] bytes) {
@@ -90,6 +93,7 @@ public final class SceneController {
             TRACKS.put(entityId, new SceneTrack(runId, entityId, duration, localStart,
                     originX, originY, originZ, originYaw, originPitch, cameraControl, List.copyOf(frames)));
             POSE_FADES.remove(entityId);
+            if (detachedLookEntity == entityId) detachedLookEntity = -1;
             return true;
         } catch (RuntimeException ignored) { return false; }
     }
@@ -157,6 +161,34 @@ public final class SceneController {
         return sample != null && sample.cameraMode() == SceneTrack.CameraMode.LOCKED;
     }
 
+    /** FREE_LOOK is a detached third-person camera; the actor head stays independent. */
+    public static boolean usesDetachedLook(int entityId, long now) {
+        SceneTrack.Sample sample = sample(entityId, now);
+        return sample != null && sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK;
+    }
+
+    public static void beginDetachedLook(int entityId, float yaw, float pitch) {
+        if (detachedLookEntity != entityId) {
+            detachedLookEntity = entityId;
+            detachedLookYaw = yaw;
+            detachedLookPitch = pitch;
+        }
+    }
+
+    public static Look detachedLook(int entityId) {
+        return detachedLookEntity == entityId ? new Look(detachedLookYaw, detachedLookPitch) : null;
+    }
+
+    public static void updateDetachedLook(int entityId, double yawDelta, double pitchDelta) {
+        if (detachedLookEntity != entityId) return;
+        detachedLookYaw = wrapDegrees(detachedLookYaw + (float)yawDelta);
+        detachedLookPitch = Math.max(-90.0f, Math.min(90.0f, detachedLookPitch + (float)pitchDelta));
+    }
+
+    public static void clearDetachedLook(int entityId) {
+        if (detachedLookEntity == entityId) detachedLookEntity = -1;
+    }
+
     private static void beginNaturalFade(int entityId, SceneTrack track, long now) {
         long end = track.localStartMillis() + (long)track.durationTicks() * 50L;
         SceneTrack.Sample endpoint = track.sample(end);
@@ -169,7 +201,7 @@ public final class SceneController {
         }
     }
 
-    static void clear() { TRACKS.clear(); POSE_FADES.clear(); }
+    static void clear() { TRACKS.clear(); POSE_FADES.clear(); detachedLookEntity = -1; }
     static int activeTracks() { return TRACKS.size(); }
 
     public record VisualFade(SceneTrack.Sample sample, float rootWeight) { }
@@ -233,5 +265,13 @@ public final class SceneController {
         return !quoted && depth == 0;
     }
 
+    private static float wrapDegrees(float degrees) {
+        degrees %= 360.0f;
+        if (degrees >= 180.0f) degrees -= 360.0f;
+        if (degrees < -180.0f) degrees += 360.0f;
+        return degrees;
+    }
+
     private record PoseFade(SceneTrack.Sample sample, long startedAtMillis, float startBlend) { }
+    public record Look(float yaw, float pitch) { }
 }

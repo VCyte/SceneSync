@@ -44,6 +44,23 @@ public abstract class CameraMixin {
         }
         SceneTrack.Sample sample = SceneController.sample(cameraEntity.getId(), System.currentTimeMillis());
         if (sample == null) {
+            if (cameraEntity instanceof LocalPlayer localPlayer
+                    && !Minecraft.getInstance().options.getCameraType().isFirstPerson()) {
+                SceneController.VisualFade fade = SceneController.visualFade(
+                        cameraEntity.getId(), System.currentTimeMillis());
+                SceneController.Look current = fade == null ? null
+                        : SceneController.detachedLook(cameraEntity.getId());
+                if (fade != null && current != null
+                        && fade.sample().cameraMode() == SceneTrack.CameraMode.FREE_LOOK) {
+                    float blend = 1.0f - fade.rootWeight();
+                    float yaw = lerpAngle(current.yaw(), localPlayer.getYRot(), blend);
+                    float pitch = localPlayer.getXRot()
+                            + (current.pitch() - localPlayer.getXRot()) * (1.0f - blend);
+                    applyDetachedCamera(localPlayer, fade.sample(), tracker, yaw, pitch);
+                    return;
+                }
+            }
+            SceneController.clearDetachedLook(cameraEntity.getId());
             scenesync$wasLocked = false;
             scenesync$limitedActive = false;
             scenesync$cameraEntityId = -1;
@@ -55,6 +72,19 @@ public abstract class CameraMixin {
             Vec3 correction = new Vec3(sample.worldX() - interpolatedEntityPosition.x,
                     sample.worldY() - interpolatedEntityPosition.y, sample.worldZ() - interpolatedEntityPosition.z);
             setPosition(((Camera)(Object)this).position().add(correction));
+
+            if (sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK
+                    && !Minecraft.getInstance().options.getCameraType().isFirstPerson()) {
+                SceneController.beginDetachedLook(cameraEntity.getId(), ((Camera)(Object)this).yRot(),
+                        ((Camera)(Object)this).xRot());
+                SceneController.Look look = SceneController.detachedLook(cameraEntity.getId());
+                if (look != null) applyDetachedCamera(localPlayer, sample, tracker, look.yaw(), look.pitch());
+                scenesync$wasLocked = false;
+                scenesync$limitedActive = false;
+                scenesync$cameraEntityId = cameraEntity.getId();
+                fov = Math.max(30.0f, Math.min(110.0f, fov + sample.cameraFov() * sample.sceneBlend()));
+                return;
+            }
 
             if (sample.cameraMode() != SceneTrack.CameraMode.FREE_LOOK) {
                 float targetYaw = wrapDegrees(sample.yaw() + sample.cameraYaw());
@@ -127,6 +157,22 @@ public abstract class CameraMixin {
         }
         // Rotation is only scripted for the local actor; compatible viewers keep their own camera.
         fov = Math.max(30.0f, Math.min(110.0f, fov + sample.cameraFov() * sample.sceneBlend()));
+    }
+
+    @Unique private void applyDetachedCamera(LocalPlayer player, SceneTrack.Sample sample,
+                                              DeltaTracker tracker, float yaw, float pitch) {
+        Vec3 pivot = new Vec3(sample.worldX(), sample.worldY() + player.getEyeHeight(), sample.worldZ());
+        Vec3 offset = ((Camera)(Object)this).position().subtract(pivot);
+        double distance = Math.max(0.05, offset.length());
+        Vec3 forward = Vec3.directionFromRotation(pitch, yaw);
+        setPosition(pivot.subtract(forward.scale(distance)));
+        boolean mirrored = Minecraft.getInstance().options.getCameraType().isMirrored();
+        SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(yaw, pitch, mirrored);
+        setRotation(cameraLook.yaw(), cameraLook.pitch());
+    }
+
+    @Unique private static float lerpAngle(float from, float to, float amount) {
+        return from + wrapDegrees(to - from) * amount;
     }
 
     @Unique private static float clamp(float value, float min, float max) {
