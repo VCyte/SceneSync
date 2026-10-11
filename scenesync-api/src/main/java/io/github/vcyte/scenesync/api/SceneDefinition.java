@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Objects;
 
 /** Immutable, server-owned scene timeline. Coordinates are relative to the starting actor pose. */
-public record SceneDefinition(String id, int durationTicks, List<SceneFrame> frames) {
+public record SceneDefinition(String id, int durationTicks, List<SceneFrame> frames, DamagePolicy damagePolicy) {
     public static final int MAX_FRAMES = 128;
     public static final int MAX_DURATION_TICKS = 24_000;
 
@@ -13,6 +13,7 @@ public record SceneDefinition(String id, int durationTicks, List<SceneFrame> fra
             throw new IllegalArgumentException("id must be a lowercase namespaced-safe identifier");
         if (durationTicks < 1 || durationTicks > MAX_DURATION_TICKS)
             throw new IllegalArgumentException("durationTicks must be in 1.." + MAX_DURATION_TICKS);
+        Objects.requireNonNull(damagePolicy, "damagePolicy");
         frames = List.copyOf(Objects.requireNonNull(frames, "frames"));
         if (frames.isEmpty() || frames.size() > MAX_FRAMES)
             throw new IllegalArgumentException("scene must contain 1.." + MAX_FRAMES + " frames");
@@ -24,5 +25,10 @@ public record SceneDefinition(String id, int durationTicks, List<SceneFrame> fra
             previous = frame.tick();
         }
         if (frames.getFirst().tick() != 0) throw new IllegalArgumentException("first frame must start at tick 0");
+    }
+
+    /** Backwards-compatible default: a real hit stops the scene and damage is allowed through. */
+    public SceneDefinition(String id, int durationTicks, List<SceneFrame> frames) {
+        this(id, durationTicks, frames, DamagePolicy.CANCEL_SCENE);
     }
 }

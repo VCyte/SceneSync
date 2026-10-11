@@ -26,8 +26,10 @@ public abstract class CameraMixin {
         SceneTrack.Sample sample = SceneController.sample(cameraEntity.getId(), System.currentTimeMillis());
         if (sample == null) return;
         if (cameraEntity instanceof LocalPlayer) {
-            Vec3 correction = new Vec3(sample.worldX() - cameraEntity.getX(),
-                    sample.worldY() - cameraEntity.getY(), sample.worldZ() - cameraEntity.getZ());
+            float partialTick = tracker.getGameTimeDeltaPartialTick(false);
+            Vec3 interpolatedEntityPosition = cameraEntity.getPosition(partialTick);
+            Vec3 correction = new Vec3(sample.worldX() - interpolatedEntityPosition.x,
+                    sample.worldY() - interpolatedEntityPosition.y, sample.worldZ() - interpolatedEntityPosition.z);
             setPosition(((Camera)(Object)this).position().add(correction));
         }
         // Deliberately preserve the player's own look direction. Scene camera rotation/shake

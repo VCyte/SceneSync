@@ -38,6 +38,7 @@ The plugin has a `demo` scene in `paper-plugin/src/main/resources/config.yml`. O
 
 - The server validates scene paths and collision safety; the actor mod sends normal movement packets from the timeline. Significant divergence or unsafe paths stop playback instead of causing a teleport-correction loop.
 - The actor client retains full look control; cinematic camera rotation and shake are disabled. Scenes may specify only a bounded, additive FOV offset (0 by default).
+- Scene damage behavior is configurable: `CANCEL_SCENE` (default) stops the scene before normal damage/hurt animation, while `IGNORE_DAMAGE` cancels damage and keeps the scene playing without the hurt reaction.
 - Network payloads are versioned, size-bounded, parsed with strict bounds, and rate-limited. Unsupported protocol versions are rejected.
 - Scene duration, frame count, coordinates, additive FOV offsets, and animation identifiers have explicit limits.
 - Starting a scene never writes to player inventory. Cosmetic equipment replacement and cross-mod animation compatibility are not yet advertised as complete features.
@@ -52,7 +53,7 @@ scenes.register(sceneDefinition);
 scenes.play(player, "intro");
 ```
 
-See `docs/PLUGIN-DEVELOPMENT.md` for the exact current API and limitations.
+See `docs/PLUGIN-DEVELOPMENT.md` for the exact current API and limitations, including per-scene damage policy.
 
 ## Compatibility and roadmap
 

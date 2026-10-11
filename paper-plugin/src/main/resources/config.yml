@@ -1,8 +1,8 @@
-protocol: 1
 max-view-distance: 64.0
 scenes:
   demo:
     duration-ticks: 80
+    damage-policy: CANCEL_SCENE # or IGNORE_DAMAGE to cancel hits and keep the scene playing
     frames:
       - tick: 0
         x: 0.0

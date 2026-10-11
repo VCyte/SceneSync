@@ -1,6 +1,7 @@
 package io.github.vcyte.scenesync.paper;
 
 import io.github.vcyte.scenesync.api.SceneDefinition;
+import io.github.vcyte.scenesync.api.DamagePolicy;
 import io.github.vcyte.scenesync.api.SceneFrame;
 import io.github.vcyte.scenesync.api.SceneManager;
 import org.bukkit.Bukkit;
@@ -10,7 +11,7 @@ import org.bukkit.entity.Player;
 
 import java.util.*;
 
-/** Main-thread-only scene registry and server-authoritative actor movement. */
+/** Main-thread-only scene registry, path validation, and client-driven actor playback. */
 final class SceneManagerImpl implements SceneManager {
     private static final int MAX_CONFIG_SCENES = 64;
     private static final int MAX_API_SCENES = 128;
@@ -39,6 +40,8 @@ final class SceneManagerImpl implements SceneManager {
                         var section = sections.getConfigurationSection(id);
                         if (section == null) throw new IllegalArgumentException("scene must be a mapping");
                         int duration = section.getInt("duration-ticks", -1);
+                        String rawPolicy = section.getString("damage-policy", "CANCEL_SCENE");
+                        DamagePolicy damagePolicy = DamagePolicy.valueOf(rawPolicy.trim().toUpperCase(Locale.ROOT));
                         var rawFrames = section.getMapList("frames");
                         List<SceneFrame> frames = new ArrayList<>();
                         if (rawFrames.size() > SceneDefinition.MAX_FRAMES) throw new IllegalArgumentException("too many frames");
@@ -58,7 +61,7 @@ final class SceneManagerImpl implements SceneManager {
                             frames.add(new SceneFrame(tick, x, y, z, yaw, pitch, animation,
                                     cameraYaw, cameraPitch, cameraRoll, shake, cameraFov));
                         }
-                        candidate.put(id, new SceneDefinition(id, duration, frames));
+                        candidate.put(id, new SceneDefinition(id, duration, frames, damagePolicy));
                     } catch (RuntimeException e) {
                         plugin.getLogger().warning("Ignored invalid scene '" + id + "': " + e.getMessage());
                     }
@@ -158,6 +161,18 @@ final class SceneManagerImpl implements SceneManager {
         // A collision, competing movement plugin, or client desync must not trigger a correction loop.
         stopInternal(run);
         return true;
+    }
+
+    void handleDamage(Player actor, org.bukkit.event.entity.EntityDamageEvent event) {
+        requireMainThread();
+        ActiveScene run = active.get(actor.getUniqueId());
+        if (run == null || event.getFinalDamage() <= 0.0) return;
+        if (run.definition.damagePolicy() == DamagePolicy.IGNORE_DAMAGE) {
+            event.setCancelled(true);
+        } else {
+            // Clear the scene track before the normal damage/hurt packets are sent.
+            stopInternal(run);
+        }
     }
 
     private void syncNewViewers(ActiveScene run) {

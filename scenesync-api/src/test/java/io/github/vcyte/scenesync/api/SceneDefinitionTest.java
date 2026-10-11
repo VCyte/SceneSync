@@ -17,6 +17,11 @@ class SceneDefinitionTest {
         input.clear();
         assertEquals(2, definition.frames().size());
     }
+    @Test void defaultsToCancelOnHitAndAllowsDamageIgnorePolicy() {
+        assertEquals(DamagePolicy.CANCEL_SCENE, new SceneDefinition("intro", 40, List.of(frame(0))).damagePolicy());
+        assertEquals(DamagePolicy.IGNORE_DAMAGE,
+                new SceneDefinition("intro", 40, List.of(frame(0)), DamagePolicy.IGNORE_DAMAGE).damagePolicy());
+    }
     @Test void rejectsNonzeroInitialFrame() {
         assertThrows(IllegalArgumentException.class, () -> new SceneDefinition("intro", 40, List.of(frame(1))));
     }

@@ -34,6 +34,15 @@ All `SceneManager` calls must run on the Paper server thread. Register scenes du
 
 Frame positions are **offsets in blocks from the actor's starting position, in the actor's starting facing basis**: positive z is forward and positive x is to the actor's right. The server and clients rotate those offsets into world coordinates from the synchronized origin yaw. While a path segment moves, the actor faces its direction of travel; on stationary segments, the frame yaw is relative to the starting view. `pitch` is relative to the starting view. Timeline time is in server ticks (20 ticks/second), with a short shared countdown; keyframe ticks must strictly increase and the first must be 0. The actor's client mod sends ordinary player movement packets at the timeline position instead of having Paper teleport the player every tick. While a track is active, movement, jump, sprint, and shift inputs are suppressed locally; mouse look remains available. Paper checks the trajectory, world safety, and movement packet deviation and ends playback on an unsafe path, significant deviation, external teleport, or competing movement. Compatible clients render actor, armor, held items, and actor camera position from the same timeline. This avoids the server teleport-correction loop, but collision, protection plugins, latency, and other movement plugins can still affect playback.
 
+## Damage policy
+
+Each scene selects one `DamagePolicy`; the default for both YAML and the backwards-compatible API constructor is `CANCEL_SCENE`:
+
+- `CANCEL_SCENE`: on positive final damage, SceneSync sends the stop signal first, then allows normal Minecraft damage and its hurt animation to occur.
+- `IGNORE_DAMAGE`: SceneSync cancels the damage event and leaves the scene running. Because damage is cancelled server-side, the actor does not lose health or receive the corresponding hurt reaction/knockback.
+
+For YAML, set `damage-policy: CANCEL_SCENE` or `damage-policy: IGNORE_DAMAGE` under the scene. For API-created scenes, pass `DamagePolicy.CANCEL_SCENE` or `DamagePolicy.IGNORE_DAMAGE` to the four-argument `SceneDefinition` constructor. Other plugins' already-cancelled damage events are left alone and do not stop the scene.
+
 Built-in pose IDs in this preview are `idle`, `walk`, `run`, `wave`, `bow`, `spin`, `clap`, and `sit`. `idle` and `walk` retain vanilla locomotion; several other poses adjust humanoid body/limb model parts. The shared `HumanoidModel` hook applies the same pose to player, vanilla armor, and arm-attached held-item rendering. Head direction is locked to the scene pose, not mouse aim. `bow` is a brief body-bow gesture, not a weapon-draw animation. `camera-fov` is an additive degree offset, bounded to +/-25 and clamped to 30..110; it defaults to 0. Legacy camera yaw/pitch/roll/shake inputs are accepted for compatibility but ignored, preserving the player's own look direction.
 
 ## Commands
