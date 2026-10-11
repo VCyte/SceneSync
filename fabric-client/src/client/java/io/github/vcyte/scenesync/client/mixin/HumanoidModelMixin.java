@@ -2,6 +2,7 @@ package io.github.vcyte.scenesync.client.mixin;
 
 import io.github.vcyte.scenesync.client.SceneController;
 import io.github.vcyte.scenesync.client.SceneTrack;
+import io.github.vcyte.scenesync.client.animation.ScenePose;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.client.renderer.entity.state.HumanoidRenderState;

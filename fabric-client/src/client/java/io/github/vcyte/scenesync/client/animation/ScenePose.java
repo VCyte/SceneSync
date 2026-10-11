@@ -1,13 +1,13 @@
-package io.github.vcyte.scenesync.client.mixin;
+package io.github.vcyte.scenesync.client.animation;
 
 import io.github.vcyte.scenesync.client.SceneTrack;
 import net.minecraft.client.model.HumanoidModel;
 
-/** Applies one scene pose to any humanoid model instance, including the separately rendered armor model. */
-final class ScenePose {
+/** Applies one scene pose to player and separately rendered humanoid armor models. */
+public final class ScenePose {
     private ScenePose() { }
 
-    static void apply(HumanoidModel<?> model, SceneTrack.Sample sample) {
+    public static void apply(HumanoidModel<?> model, SceneTrack.Sample sample) {
         float phase = sample.ticks() * 0.35f;
         switch (sample.animation()) {
             case "wave" -> {
