@@ -3,13 +3,23 @@
 ## Dependency
 
 ```gradle
+repositories {
+    maven {
+        url = uri('https://maven.pkg.github.com/VCyte/SceneSync')
+        credentials {
+            username = System.getenv('GITHUB_ACTOR')
+            password = System.getenv('GITHUB_TOKEN')
+        }
+    }
+}
+
 dependencies {
-    compileOnly files('libs/scenesync-api-0.1.3.jar')
+    compileOnly 'io.github.vcyte.scenesync:scenesync-api:0.1.4'
     compileOnly 'io.papermc.paper:paper-api:26.2.build.124-stable'
 }
 ```
 
-Download `scenesync-api-0.1.3.jar` from the matching SceneSync GitHub Release into your plugin project's `libs/` directory. For a local multi-project build, use `implementation project(':scenesync-api')`.
+Download `scenesync-api-0.1.4.jar` from the matching SceneSync GitHub Release into your plugin project's `libs/` directory. For a local multi-project build, use `implementation project(':scenesync-api')`.
 
 ## Register and play a scene
 

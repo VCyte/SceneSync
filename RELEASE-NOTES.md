@@ -1,3 +1,10 @@
+# SceneSync 0.1.4 security and packaging maintenance release
+
+- Fixed release workflows that referenced obsolete 0.1.0 artifact names.
+- Pinned GitHub Actions and Gradle wrapper distribution verification.
+- Added GitHub Packages Maven publication for `io.github.vcyte.scenesync:scenesync-api`.
+- Documented Maven dependency usage for Paper plugin authors.
+
 # SceneSync 0.1.3 corrective development preview
 
 Minecraft 26.2 / Java 25 / Paper 26.2 / Fabric protocol v3. Replace the Paper plugin and Fabric client mod together.

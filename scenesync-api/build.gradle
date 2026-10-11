@@ -1,4 +1,7 @@
-plugins { id 'java-library' }
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
 base { archivesName = 'scenesync-api' }
 dependencies {
     compileOnly 'io.papermc.paper:paper-api:26.2.build.124-stable'
@@ -14,3 +17,40 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 tasks.named('test') { useJUnitPlatform() }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            artifactId = 'scenesync-api'
+            pom {
+                name = 'SceneSync API'
+                description = 'Paper API for server-authored synchronized Minecraft scenes.'
+                url = 'https://github.com/VCyte/SceneSync'
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/licenses/MIT'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/VCyte/SceneSync.git'
+                    developerConnection = 'scm:git:ssh://git@github.com/VCyte/SceneSync.git'
+                    url = 'https://github.com/VCyte/SceneSync'
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = 'githubPackages'
+            url = uri(providers.environmentVariable('SCENESYNC_MAVEN_URL').orElse(
+                    layout.buildDirectory.dir('maven-repo').map { it.asFile.toURI().toString() }).get())
+            def user = providers.environmentVariable('SCENESYNC_MAVEN_USERNAME').orNull
+            def token = providers.environmentVariable('SCENESYNC_MAVEN_PASSWORD').orNull
+            if (user != null && token != null) {
+                credentials { username = user; password = token }
+            }
+        }
+    }
+}
