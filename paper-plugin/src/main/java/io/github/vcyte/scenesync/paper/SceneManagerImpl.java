@@ -5,6 +5,8 @@ import io.github.vcyte.scenesync.api.CameraMode;
 import io.github.vcyte.scenesync.api.DamagePolicy;
 import io.github.vcyte.scenesync.api.SceneFrame;
 import io.github.vcyte.scenesync.api.SceneCameraSettings;
+import io.github.vcyte.scenesync.api.BonePose;
+import io.github.vcyte.scenesync.api.ModelPose;
 import io.github.vcyte.scenesync.api.SceneManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -56,7 +58,7 @@ final class SceneManagerImpl implements SceneManager {
                         Map<String, DamagePolicy> animationPolicies = new LinkedHashMap<>();
                         var animationPolicySection = section.getConfigurationSection("animation-damage-policies");
                         if (animationPolicySection != null) {
-                            if (animationPolicySection.getKeys(false).size() > SceneFrame.SUPPORTED_ANIMATIONS.size())
+                            if (animationPolicySection.getKeys(false).size() > SceneDefinition.MAX_FRAMES)
                                 throw new IllegalArgumentException("too many animation damage policies");
                             for (String animation : animationPolicySection.getKeys(false)) {
                                 String policyName = animationPolicySection.getString(animation);
@@ -81,8 +83,9 @@ final class SceneManagerImpl implements SceneManager {
                             float cameraRoll = number(raw, "camera-roll", 0).floatValue();
                             float shake = number(raw, "camera-shake", 0).floatValue();
                             float cameraFov = number(raw, "camera-fov", 0).floatValue();
+                            ModelPose pose = parsePose(raw.get("pose"));
                             frames.add(new SceneFrame(tick, x, y, z, yaw, pitch, animation,
-                                    cameraYaw, cameraPitch, cameraRoll, shake, cameraFov));
+                                    cameraYaw, cameraPitch, cameraRoll, shake, cameraFov, pose));
                         }
                         candidate.put(id, new SceneDefinition(id, duration, frames, damagePolicy, animationPolicies, cameraSettings));
                     } catch (RuntimeException e) {
@@ -103,6 +106,31 @@ final class SceneManagerImpl implements SceneManager {
         if (!(value instanceof Number n)) throw new IllegalArgumentException(key + " must be numeric");
         if (!Double.isFinite(n.doubleValue())) throw new IllegalArgumentException(key + " must be finite");
         return n;
+    }
+
+    private static ModelPose parsePose(Object raw) {
+        if (raw == null) return null;
+        if (!(raw instanceof Map<?, ?> parts) || parts.size() > 6)
+            throw new IllegalArgumentException("pose must be a mapping with at most six humanoid parts");
+        Set<String> allowed = Set.of("head", "body", "left-arm", "right-arm", "left-leg", "right-leg");
+        for (Object key : parts.keySet()) if (!(key instanceof String name) || !allowed.contains(name))
+            throw new IllegalArgumentException("unknown pose part: " + key);
+        return new ModelPose(parseBone(parts, "head"), parseBone(parts, "body"),
+                parseBone(parts, "left-arm"), parseBone(parts, "right-arm"),
+                parseBone(parts, "left-leg"), parseBone(parts, "right-leg"));
+    }
+
+    private static BonePose parseBone(Map<?, ?> parts, String name) {
+        Object raw = parts.get(name);
+        if (raw == null) return BonePose.ZERO;
+        if (!(raw instanceof Map<?, ?> bone) || bone.size() > 6)
+            throw new IllegalArgumentException(name + " pose must be a transform mapping");
+        Set<String> allowed = Set.of("x", "y", "z", "pitch", "yaw", "roll");
+        for (Object key : bone.keySet()) if (!(key instanceof String field) || !allowed.contains(field))
+            throw new IllegalArgumentException("unknown " + name + " pose field: " + key);
+        return new BonePose(number(bone, "x", 0).floatValue(), number(bone, "y", 0).floatValue(),
+                number(bone, "z", 0).floatValue(), number(bone, "pitch", 0).floatValue(),
+                number(bone, "yaw", 0).floatValue(), number(bone, "roll", 0).floatValue());
     }
 
     @Override public void register(SceneDefinition definition) {

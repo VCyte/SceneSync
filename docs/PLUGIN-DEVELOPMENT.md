@@ -53,9 +53,42 @@ Each scene selects a fallback `DamagePolicy`; the default for both YAML and the 
 
 For YAML, set the fallback `damage-policy`, then optionally map animation IDs under `animation-damage-policies` (for example, `wave: IGNORE_DAMAGE`). Keys must be animations used by that scene; unlisted animations inherit the fallback. The policy switches at the same keyframe boundary as the animation. For API-created scenes, use the five-argument `SceneDefinition(id, duration, frames, fallbackPolicy, animationPolicyMap)` constructor; the three- and four-argument constructors remain and default to no per-animation overrides. Other plugins' already-cancelled damage events are left alone and do not stop the scene.
 
-Built-in pose IDs are `idle`, `walk`, `run`, `wave`, `bow`, `spin`, `clap`, `sit`, `lightning_charge`, `lightning_dash`, and `lightning_finish`. The Thunderclap sample is available as `/scenesync play thunderclap-flash [player]`: it charges for 16 ticks, then moves 12 blocks over 6 ticks (2 blocks per server tick), holds a finishing pose, and eases camera/FOV accents around the dash. It uses `LOCKED` camera control and is cancelled by damage. Its rapid path is checked at <=0.25-block intervals, including player-width corner samples, and a movement event crossing an unsafe segment is cancelled; the endpoint must also remain on the scene path. This is still a visual scripted move, not a damage/hitbox/combat system.
+### Plugin-authored animations (no client update per animation)
 
-`idle` and `walk` retain vanilla locomotion; the other poses adjust humanoid body/limb model parts. The shared `HumanoidModel` hook applies the same pose to player, vanilla armor, and arm-attached held-item rendering (so a sword held in the right hand follows the slash pose). In `FREE_LOOK`, head direction remains locked to the scene pose rather than live mouse aim; in camera-controlled modes, authored camera yaw/pitch offsets also turn the head. `bow` is a brief body-bow gesture, not a weapon-draw animation. `camera-fov` is an additive degree offset, bounded to +/-25 and clamped to 30..110; it defaults to 0. Camera yaw/pitch/roll/shake keyframes affect the actor's view only in `LOCKED` or `LIMITED` mode, with roll/shake comfort clamps.
+Protocol v3 sends a bounded generic humanoid pose in each timeline frame. `animation` is now a namespaced label owned by your plugin (for example `myplugin:slash`), not a client-side animation enum. Supply a `ModelPose` with the frame; SceneSync's existing client mod validates, interpolates, and applies it. Your next animation can use a new label and different bone transforms without adding a client pose switch or publishing another mod build. Server and client must both use protocol v3 because the wire format changed.
+
+```java
+import io.github.vcyte.scenesync.api.BonePose;
+import io.github.vcyte.scenesync.api.ModelPose;
+import io.github.vcyte.scenesync.api.SceneDefinition;
+import io.github.vcyte.scenesync.api.SceneFrame;
+
+var windup = ModelPose.builder()
+    .body(new BonePose(0, 0, 0, 20, 0, 0))
+    .rightArm(new BonePose(0, 0, 0, -35, -20, -8))
+    .build(); // unspecified bones stay neutral
+var slash = ModelPose.builder()
+    .body(new BonePose(0, 0, 0, 42, 0, 0))
+    .rightArm(new BonePose(0, 0, 0, -125, -12, -25))
+    .leftArm(new BonePose(0, 0, 0, 35, 8, 12))
+    .leftLeg(new BonePose(0, 0, 0, -30, 0, 0))
+    .rightLeg(new BonePose(0, 0, 0, 25, 0, 0))
+    .build();
+
+var scene = new SceneDefinition("myplugin_slash", 12, java.util.List.of(
+    new SceneFrame(0, 0, 0, 0, 0, 0, "myplugin:windup", 0, 0, 0, 0, 0, windup),
+    new SceneFrame(5, 0, 0, 0, 0, 0, "myplugin:slash", 0, 0, 0, 0, 0, slash),
+    new SceneFrame(12, 0, 0, 0, 0, 0, "idle", 0, 0, 0, 0)
+));
+sceneManager.register(scene);
+sceneManager.play(player, scene.id());
+```
+
+Translations are bounded model-pixel offsets (each axis +/-8); rotations are degrees (+/-180). The client interpolates translation and shortest-path Euler rotation between frames. The six vanilla humanoid parts are head, body, arms and legs; their vanilla armor models and arm-attached held items inherit the transforms. This is a generic humanoid rig, not arbitrary mesh/bone/texture loading. Built-in convenience IDs (`idle`, `walk`, `run`, `wave`, `bow`, `spin`, `clap`, `sit`) remain optional legacy poses; new plugin motions should use namespaced IDs and provide pose data.
+
+The Thunderclap sample is available as `/scenesync play thunderclap-flash [player]`: it charges for 16 ticks, then moves 12 blocks over 6 ticks (2 blocks per server tick), holds a finishing pose, and eases camera/FOV accents around the dash. Its charge/dash/finish transforms use `scenesync:...` IDs and generic pose payloads—not client-side lightning code. It uses `LOCKED` camera control and is cancelled by damage. Its rapid path is checked at <=0.25-block intervals, including player-width corner samples, and a movement event crossing an unsafe segment is cancelled; the endpoint must also remain on the scene path. This is a visual scripted move, not a damage/hitbox/combat system.
+
+In `FREE_LOOK`, head direction remains locked to the scene pose rather than live mouse aim; in camera-controlled modes, authored camera yaw/pitch offsets also turn the head when using legacy poses. `camera-fov` is an additive degree offset, bounded to +/-25 and clamped to 30..110; it defaults to 0. Camera yaw/pitch/roll/shake keyframes affect the actor's view only in `LOCKED` or `LIMITED` mode, with roll/shake comfort clamps.
 
 ## Commands
 

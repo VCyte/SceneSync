@@ -21,6 +21,8 @@ public record SceneDefinition(String id, int durationTicks, List<SceneFrame> fra
         frames = List.copyOf(Objects.requireNonNull(frames, "frames"));
         animationDamagePolicies = Map.copyOf(Objects.requireNonNull(animationDamagePolicies, "animationDamagePolicies"));
         Objects.requireNonNull(cameraSettings, "cameraSettings");
+        if (animationDamagePolicies.size() > MAX_FRAMES)
+            throw new IllegalArgumentException("too many animation damage policies");
         if (frames.isEmpty() || frames.size() > MAX_FRAMES)
             throw new IllegalArgumentException("scene must contain 1.." + MAX_FRAMES + " frames");
         int previous = -1;
@@ -28,6 +30,8 @@ public record SceneDefinition(String id, int durationTicks, List<SceneFrame> fra
             Objects.requireNonNull(frame, "frame");
             if (frame.tick() <= previous) throw new IllegalArgumentException("frame ticks must be strictly increasing");
             if (frame.tick() > durationTicks) throw new IllegalArgumentException("frame exceeds scene duration");
+            if (!SceneFrame.SUPPORTED_ANIMATIONS.contains(frame.animation()) && frame.pose() == null)
+                throw new IllegalArgumentException("plugin-defined animation '" + frame.animation() + "' requires a ModelPose");
             previous = frame.tick();
         }
         if (frames.getFirst().tick() != 0) throw new IllegalArgumentException("first frame must start at tick 0");

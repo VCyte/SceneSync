@@ -74,65 +74,107 @@ scenes:
         z: 0.0
         yaw: 0.0
         pitch: 0.0
-        animation: lightning_charge
+        animation: "scenesync:thunderclap_charge"
         camera-pitch: 4.0
         camera-fov: -8.0
+        pose:
+          body: {pitch: 24.0}
+          left-arm: {pitch: -24.0, yaw: 19.0, roll: 7.0}
+          right-arm: {pitch: -32.0, yaw: -19.0, roll: -7.0}
+          left-leg: {pitch: 9.0}
+          right-leg: {pitch: 9.0}
       - tick: 14
         x: 0.0
         y: 0.0
         z: 0.0
         yaw: 0.0
         pitch: 0.0
-        animation: lightning_charge
+        animation: "scenesync:thunderclap_charge"
         camera-pitch: 2.0
         camera-fov: -8.0
+        pose:
+          body: {pitch: 26.0}
+          left-arm: {pitch: -26.0, yaw: 20.0, roll: 8.0}
+          right-arm: {pitch: -34.0, yaw: -20.0, roll: -8.0}
+          left-leg: {pitch: 9.0}
+          right-leg: {pitch: 9.0}
       - tick: 16
         x: 0.0
         y: 0.0
         z: 0.0
         yaw: 0.0
         pitch: 0.0
-        animation: lightning_dash
+        animation: "scenesync:thunderclap_dash"
         camera-pitch: 0.0
         camera-fov: 8.0
+        pose:
+          body: {pitch: 33.0}
+          left-arm: {pitch: 45.0, yaw: 7.0}
+          right-arm: {pitch: -81.0, yaw: -10.0, roll: -5.0}
+          left-leg: {pitch: -42.0}
+          right-leg: {pitch: 36.0}
       - tick: 18
         x: 0.0
         y: 0.0
         z: 4.0
         yaw: 0.0
         pitch: 0.0
-        animation: lightning_dash
+        animation: "scenesync:thunderclap_dash"
         camera-fov: 18.0
         camera-shake: 0.5
+        pose:
+          body: {pitch: 35.0}
+          left-arm: {pitch: 48.0, yaw: 7.0}
+          right-arm: {pitch: -78.0, yaw: -10.0, roll: -5.0}
+          left-leg: {pitch: -32.0}
+          right-leg: {pitch: 26.0}
       - tick: 20
         x: 0.0
         y: 0.0
         z: 8.0
         yaw: 0.0
         pitch: 0.0
-        animation: lightning_dash
+        animation: "scenesync:thunderclap_dash"
         camera-fov: 18.0
         camera-shake: 0.8
+        pose:
+          body: {pitch: 33.0}
+          left-arm: {pitch: 42.0, yaw: 7.0}
+          right-arm: {pitch: -84.0, yaw: -10.0, roll: -5.0}
+          left-leg: {pitch: -50.0}
+          right-leg: {pitch: 44.0}
       - tick: 22
         x: 0.0
         y: 0.0
         z: 12.0
         yaw: 0.0
         pitch: 0.0
-        animation: lightning_finish
+        animation: "scenesync:thunderclap_finish"
         camera-roll: -3.0
         camera-shake: 1.0
         camera-fov: 12.0
+        pose:
+          body: {pitch: 12.0}
+          left-arm: {pitch: -10.0}
+          right-arm: {pitch: -99.0, yaw: -13.0}
+          left-leg: {pitch: -7.0}
+          right-leg: {pitch: 7.0}
       - tick: 24
         x: 0.0
         y: 0.0
         z: 12.0
         yaw: 0.0
         pitch: 0.0
-        animation: lightning_finish
+        animation: "scenesync:thunderclap_finish"
         camera-roll: 0.0
         camera-shake: 0.0
         camera-fov: 4.0
+        pose:
+          body: {pitch: 10.0}
+          left-arm: {pitch: -10.0}
+          right-arm: {pitch: -99.0, yaw: -13.0}
+          left-leg: {pitch: -7.0}
+          right-leg: {pitch: 7.0}
       - tick: 30
         x: 0.0
         y: 0.0

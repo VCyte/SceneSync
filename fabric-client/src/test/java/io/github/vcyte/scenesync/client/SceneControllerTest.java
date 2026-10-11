@@ -1,48 +1,96 @@
 package io.github.vcyte.scenesync.client;
 
-import com.google.gson.JsonParser;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SceneControllerTest {
     @AfterEach void clearTracks() { SceneController.clear(); }
 
-    @Test void acceptsThunderclapTimelineAndLockedCameraPacket() {
+    @Test void acceptsPluginDefinedNamespacedAnimationsAndGenericPosePacket() {
         int entityId = 2_100_001;
         long start = System.currentTimeMillis() + 1_000;
-        String raw = """
-                {
-                  "protocol": 2,
-                  "entityId": %d,
-                  "runId": "thunderclap1",
-                  "durationTicks": 36,
-                  "startAtMillis": %d,
-                  "originX": 0,
-                  "originY": 64,
-                  "originZ": 0,
-                  "originYaw": 0,
-                  "cameraControl": {"mode":"LOCKED","maxYawDegrees":80,"maxPitchDegrees":45},
-                  "frames": [
-                    {"tick":0,"x":0,"y":0,"z":0,"animation":"lightning_charge"},
-                    {"tick":16,"x":0,"y":0,"z":0,"animation":"lightning_dash"},
-                    {"tick":22,"x":0,"y":0,"z":12,"animation":"lightning_finish"},
-                    {"tick":36,"x":0,"y":0,"z":12,"animation":"idle"}
-                  ]
-                }
-                """.formatted(entityId, start);
+        JsonArray frames = new JsonArray();
+        frames.add(frame(0, "example:slash_charge", 0, -35.0f));
+        frames.add(frame(16, "example:slash", 0, -120.0f));
+        frames.add(frame(22, "example:slash_finish", 12, -165.0f));
+        frames.add(frame(36, "idle", 12, null));
+        JsonObject packet = packet(entityId, start, 36, frames);
 
-        assertTrue(SceneController.acceptPlay(JsonParser.parseString(raw).getAsJsonObject(), 0));
+        assertTrue(SceneController.acceptPlay(packet, 0));
         SceneTrack.Sample charge = SceneController.sample(entityId, start);
-        SceneTrack.Sample dash = SceneController.sample(entityId, start + 16 * 50L);
-        SceneTrack.Sample finish = SceneController.sample(entityId, start + 22 * 50L);
+        SceneTrack.Sample transition = SceneController.sample(entityId, start + 8 * 50L);
+        SceneTrack.Sample strike = SceneController.sample(entityId, start + 16 * 50L);
         assertNotNull(charge);
-        assertEquals("lightning_charge", charge.animation());
+        assertEquals("example:slash_charge", charge.animation());
         assertEquals(SceneTrack.CameraMode.LOCKED, charge.cameraMode());
-        assertEquals("lightning_dash", dash.animation());
-        assertEquals("lightning_finish", finish.animation());
+        assertEquals(-35.0f, charge.pose().rightArm().pitch());
+        assertEquals("example:slash_charge", transition.animation());
+        assertEquals(-77.5f, transition.pose().rightArm().pitch(), 0.001f);
+        assertEquals("example:slash", strike.animation());
+        assertEquals(-120.0f, strike.pose().rightArm().pitch());
+    }
+
+    @Test void rejectsUnposedCustomLabelsAndOutOfRangeTransforms() {
+        long start = System.currentTimeMillis() + 1_000;
+        JsonArray missingPose = new JsonArray();
+        missingPose.add(frame(0, "example:missing", 0, null));
+        assertFalse(SceneController.acceptPlay(packet(2_100_002, start, 1, missingPose), 0));
+
+        JsonArray invalidTransform = new JsonArray();
+        invalidTransform.add(frame(0, "example:overflow", 0, 180.1f));
+        assertFalse(SceneController.acceptPlay(packet(2_100_003, start, 1, invalidTransform), 0));
+    }
+
+    private static JsonObject packet(int entityId, long start, int duration, JsonArray frames) {
+        JsonObject packet = new JsonObject();
+        packet.addProperty("protocol", 3);
+        packet.addProperty("entityId", entityId);
+        packet.addProperty("runId", "pluginpose" + entityId);
+        packet.addProperty("durationTicks", duration);
+        packet.addProperty("startAtMillis", start);
+        packet.addProperty("originX", 0);
+        packet.addProperty("originY", 64);
+        packet.addProperty("originZ", 0);
+        packet.addProperty("originYaw", 0);
+        JsonObject camera = new JsonObject();
+        camera.addProperty("mode", "LOCKED");
+        camera.addProperty("maxYawDegrees", 80);
+        camera.addProperty("maxPitchDegrees", 45);
+        packet.add("cameraControl", camera);
+        packet.add("frames", frames);
+        return packet;
+    }
+
+    private static JsonObject frame(int tick, String animation, double z, Float rightArmPitch) {
+        JsonObject frame = new JsonObject();
+        frame.addProperty("tick", tick);
+        frame.addProperty("x", 0);
+        frame.addProperty("y", 0);
+        frame.addProperty("z", z);
+        frame.addProperty("animation", animation);
+        if (rightArmPitch != null) frame.add("pose", pose(rightArmPitch));
+        return frame;
+    }
+
+    private static JsonArray pose(float rightArmPitch) {
+        JsonArray pose = new JsonArray();
+        pose.add(bone(0)); pose.add(bone(0));
+        pose.add(bone(0)); pose.add(bone(rightArmPitch));
+        pose.add(bone(0)); pose.add(bone(0));
+        return pose;
+    }
+
+    private static JsonArray bone(float pitch) {
+        JsonArray values = new JsonArray();
+        values.add(0); values.add(0); values.add(0);
+        values.add(pitch); values.add(0); values.add(0);
+        return values;
     }
 }

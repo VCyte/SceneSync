@@ -6,6 +6,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.github.vcyte.scenesync.api.SceneDefinition;
 import io.github.vcyte.scenesync.api.SceneFrame;
+import io.github.vcyte.scenesync.api.ModelPose;
+import io.github.vcyte.scenesync.api.BonePose;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 
@@ -19,7 +21,7 @@ final class SceneBridge implements PluginMessageListener {
     static final String HELLO = "scenesync:hello";
     static final String PLAY = "scenesync:play";
     static final String STOP = "scenesync:stop";
-    static final int PROTOCOL = 2;
+    static final int PROTOCOL = 3;
     static final int MAX_PACKET_BYTES = 64 * 1024;
     private final SceneSyncPlugin plugin;
     private final Map<UUID, Session> sessions = new HashMap<>();
@@ -94,10 +96,29 @@ final class SceneBridge implements PluginMessageListener {
             f.addProperty("cameraYaw", frame.cameraYaw()); f.addProperty("cameraPitch", frame.cameraPitch());
             f.addProperty("cameraRoll", frame.cameraRoll()); f.addProperty("cameraShake", frame.cameraShake());
             f.addProperty("cameraFov", frame.cameraFov());
+            if (frame.pose() != null) f.add("pose", encodePose(frame.pose()));
             frames.add(f);
         }
         packet.add("frames", frames);
         send(viewer, PLAY, packet);
+    }
+
+    private static JsonArray encodePose(ModelPose pose) {
+        JsonArray encoded = new JsonArray();
+        encoded.add(encodeBone(pose.head()));
+        encoded.add(encodeBone(pose.body()));
+        encoded.add(encodeBone(pose.leftArm()));
+        encoded.add(encodeBone(pose.rightArm()));
+        encoded.add(encodeBone(pose.leftLeg()));
+        encoded.add(encodeBone(pose.rightLeg()));
+        return encoded;
+    }
+
+    private static JsonArray encodeBone(BonePose pose) {
+        JsonArray values = new JsonArray();
+        values.add(pose.x()); values.add(pose.y()); values.add(pose.z());
+        values.add(pose.pitch()); values.add(pose.yaw()); values.add(pose.roll());
+        return values;
     }
 
     void sendStop(Player viewer, int entityId, String runId) {

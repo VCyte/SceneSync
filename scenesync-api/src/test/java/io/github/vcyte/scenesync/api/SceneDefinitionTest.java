@@ -67,12 +67,29 @@ class SceneDefinitionTest {
                 () -> new SceneFrame(0, Double.NaN, 0, 0, 0, 0, "idle", 0, 0, 0, 0));
     }
 
-    @Test void rejectsUnsupportedAnimation() {
-        assertThrows(IllegalArgumentException.class,
-                () -> new SceneFrame(0, 0, 0, 0, 0, 0, "arbitrary", 0, 0, 0, 0));
+    @Test void acceptsNamespacedPluginAnimationWithGenericPose() {
+        var custom = new SceneFrame(0, 0, 0, 0, 0, 0, "example:slash", 0, 0, 0, 0, 0,
+                new ModelPose(BonePose.ZERO, BonePose.ZERO, BonePose.ZERO,
+                        new BonePose(0, 0, 0, -95, -20, 0), BonePose.ZERO, BonePose.ZERO));
+        var scene = new SceneDefinition("intro", 20, List.of(custom));
+        assertEquals("example:slash", scene.frames().getFirst().animation());
     }
-    @Test void acceptsThunderclapChargeDashAndFinishPoseIds() {
-        for (String animation : List.of("lightning_charge", "lightning_dash", "lightning_finish"))
-            assertTrue(SceneFrame.SUPPORTED_ANIMATIONS.contains(animation));
+    @Test void rejectsPluginAnimationWithoutGenericPoseAndMalformedAnimationId() {
+        var custom = new SceneFrame(0, 0, 0, 0, 0, 0, "example:slash", 0, 0, 0, 0);
+        assertThrows(IllegalArgumentException.class, () -> new SceneDefinition("intro", 20, List.of(custom)));
+        assertThrows(IllegalArgumentException.class,
+                () -> new SceneFrame(0, 0, 0, 0, 0, 0, "../bad", 0, 0, 0, 0));
+    }
+    @Test void poseBuilderDefaultsUnspecifiedBonesToNeutral() {
+        var arm = new BonePose(0, 0, 0, -95, -20, 0);
+        var pose = ModelPose.builder().rightArm(arm).build();
+        assertEquals(arm, pose.rightArm());
+        assertEquals(BonePose.ZERO, pose.head());
+        assertEquals(BonePose.ZERO, pose.leftLeg());
+    }
+    @Test void rejectsUnboundedModelBoneTransforms() {
+        assertThrows(IllegalArgumentException.class, () -> new BonePose(8.1f, 0, 0, 0, 0, 0));
+        assertThrows(IllegalArgumentException.class, () -> new BonePose(0, 0, 0, 181, 0, 0));
+        assertThrows(IllegalArgumentException.class, () -> new BonePose(0, Float.NaN, 0, 0, 0, 0));
     }
 }

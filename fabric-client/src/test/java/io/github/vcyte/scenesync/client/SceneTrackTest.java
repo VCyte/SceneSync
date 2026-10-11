@@ -57,11 +57,36 @@ class SceneTrackTest {
         assertEquals(45.0f, sample.maxPitchDegrees());
     }
 
+    @Test void interpolatesPluginPoseAndUsesShortestRotationPath() {
+        SceneTrack.Bone startArm = new SceneTrack.Bone(0, 0, 0, 170, 0, 0);
+        SceneTrack.Bone endArm = new SceneTrack.Bone(2, 0, 0, -170, 0, 0);
+        SceneTrack.Pose startPose = new SceneTrack.Pose(SceneTrack.Pose.NEUTRAL.head(),
+                SceneTrack.Pose.NEUTRAL.body(), SceneTrack.Pose.NEUTRAL.leftArm(), startArm,
+                SceneTrack.Pose.NEUTRAL.leftLeg(), SceneTrack.Pose.NEUTRAL.rightLeg());
+        SceneTrack.Pose endPose = new SceneTrack.Pose(SceneTrack.Pose.NEUTRAL.head(),
+                SceneTrack.Pose.NEUTRAL.body(), SceneTrack.Pose.NEUTRAL.leftArm(), endArm,
+                SceneTrack.Pose.NEUTRAL.leftLeg(), SceneTrack.Pose.NEUTRAL.rightLeg());
+        SceneTrack track = new SceneTrack("run-pose", 11, 20, 1_000,
+                0, 64, 0, 0, List.of(
+                posedFrame(0, "plugin:windup", startPose),
+                posedFrame(20, "plugin:slash", endPose)));
+
+        SceneTrack.Sample sample = track.sample(1_500);
+
+        assertEquals(1.0f, sample.pose().rightArm().x(), 1.0e-6f);
+        assertEquals(180.0f, sample.pose().rightArm().pitch(), 1.0e-4f);
+    }
+
     private static SceneTrack.Frame frame(int tick, double x, double y, double z, float yaw) {
         return new SceneTrack.Frame(tick, x, y, z, yaw, 0, "walk", 0, 0, 0, 0);
     }
 
     private static SceneTrack.Frame frameWithFov(int tick, float fov) {
         return new SceneTrack.Frame(tick, 0, 0, 0, 0, 0, "idle", 0, 0, 0, 0, fov);
+    }
+
+    private static SceneTrack.Frame posedFrame(int tick, String animation, SceneTrack.Pose pose) {
+        return new SceneTrack.Frame(tick, 0, 0, 0, 0, 0, animation,
+                0, 0, 0, 0, 0, pose);
     }
 }

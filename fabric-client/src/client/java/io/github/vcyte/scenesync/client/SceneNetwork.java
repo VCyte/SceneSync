@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 import java.util.concurrent.atomic.AtomicLong;
 
 final class SceneNetwork {
-    private static final int PROTOCOL = 2;
+    private static final int PROTOCOL = 3;
     private static final long WINDOW_NANOS = 10_000_000_000L;
     private static final int MAX_PACKETS_PER_WINDOW = 64;
     private static final Pattern SESSION = Pattern.compile("[a-f0-9]{32}");
