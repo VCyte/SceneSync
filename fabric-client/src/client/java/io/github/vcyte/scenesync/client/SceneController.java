@@ -151,6 +151,12 @@ public final class SceneController {
         return false;
     }
 
+    /** Mouse look must not fight the scripted camera while the scene is LOCKED. */
+    public static boolean blocksLook(int entityId, long now) {
+        SceneTrack.Sample sample = sample(entityId, now);
+        return sample != null && sample.cameraMode() == SceneTrack.CameraMode.LOCKED;
+    }
+
     private static void beginNaturalFade(int entityId, SceneTrack track, long now) {
         long end = track.localStartMillis() + (long)track.durationTicks() * 50L;
         SceneTrack.Sample endpoint = track.sample(end);

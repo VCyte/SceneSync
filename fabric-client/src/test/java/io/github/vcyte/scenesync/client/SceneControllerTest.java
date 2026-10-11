@@ -24,6 +24,7 @@ class SceneControllerTest {
         JsonObject packet = packet(entityId, start, 36, frames);
 
         assertTrue(SceneController.acceptPlay(packet, 0));
+        assertTrue(SceneController.blocksLook(entityId, start + 8 * 50L));
         SceneTrack.Sample charge = SceneController.sample(entityId, start);
         SceneTrack.Sample transition = SceneController.sample(entityId, start + 8 * 50L);
         SceneTrack.Sample strike = SceneController.sample(entityId, start + 16 * 50L);

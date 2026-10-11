@@ -6,6 +6,7 @@
     "CameraAccessor",
     "ClientInputAccessor",
     "KeyboardInputMixin",
+    "MouseHandlerMixin",
     "LocalPlayerSceneMixin",
     "HumanoidModelMixin",
     "AvatarRendererMixin",
