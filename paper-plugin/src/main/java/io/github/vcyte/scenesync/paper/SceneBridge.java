@@ -73,6 +73,11 @@ final class SceneBridge implements PluginMessageListener {
         packet.addProperty("scene", scene.id());
         packet.addProperty("durationTicks", scene.durationTicks());
         packet.addProperty("startAtMillis", startAtMillis);
+        var origin = actor.getLocation();
+        packet.addProperty("originX", origin.getX());
+        packet.addProperty("originY", origin.getY());
+        packet.addProperty("originZ", origin.getZ());
+        packet.addProperty("originYaw", origin.getYaw());
         JsonArray frames = new JsonArray();
         for (SceneFrame frame : scene.frames()) {
             JsonObject f = new JsonObject();

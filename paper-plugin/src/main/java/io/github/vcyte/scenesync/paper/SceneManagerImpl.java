@@ -158,8 +158,17 @@ final class SceneManagerImpl implements SceneManager {
         double t = Math.max(0, Math.min(1, (tick - a.tick()) / span));
         double x = lerp(a.x(), b.x(), t), y = lerp(a.y(), b.y(), t), z = lerp(a.z(), b.z(), t);
         float yaw = (float)lerp(a.yaw(), b.yaw(), t), pitch = (float)lerp(a.pitch(), b.pitch(), t);
-        Location result = run.origin.clone().add(x, y, z);
-        result.setYaw(run.origin.getYaw() + yaw); result.setPitch(Math.max(-90, Math.min(90, run.origin.getPitch() + pitch)));
+        double radians = Math.toRadians(run.origin.getYaw());
+        double worldX = x * Math.cos(radians) - z * Math.sin(radians);
+        double worldZ = x * Math.sin(radians) + z * Math.cos(radians);
+        Location result = run.origin.clone().add(worldX, y, worldZ);
+        double localDx = b.x() - a.x(), localDz = b.z() - a.z();
+        if (Math.abs(localDx) + Math.abs(localDz) > 0.0001) {
+            double worldDx = localDx * Math.cos(radians) - localDz * Math.sin(radians);
+            double worldDz = localDx * Math.sin(radians) + localDz * Math.cos(radians);
+            yaw = (float)Math.toDegrees(Math.atan2(-worldDx, worldDz));
+        } else yaw += run.origin.getYaw();
+        result.setYaw(yaw); result.setPitch(Math.max(-90, Math.min(90, run.origin.getPitch() + pitch)));
         return result;
     }
 

@@ -37,10 +37,15 @@ public final class SceneController {
             long serverStart = longValue(json, "startAtMillis", -1, 0, Long.MAX_VALUE);
             long now = System.currentTimeMillis();
             long localStart = serverStart - serverOffsetMillis;
+            double originX = decimal(json, "originX", Double.NaN, -30_000_000, 30_000_000);
+            double originY = decimal(json, "originY", Double.NaN, -2048, 2048);
+            double originZ = decimal(json, "originZ", Double.NaN, -30_000_000, 30_000_000);
+            float originYaw = (float)decimal(json, "originYaw", Double.NaN, -360, 360);
             JsonArray source = json.getAsJsonArray("frames");
             if (protocol != 1 || entityId < 0 || runId == null || !ID.matcher(runId).matches()
                     || duration < 1 || source == null || source.isEmpty() || source.size() > 128
-                    || localStart < now - 120_000L || localStart > now + 120_000L) return false;
+                    || !Double.isFinite(originX) || !Double.isFinite(originY) || !Double.isFinite(originZ)
+                    || !Float.isFinite(originYaw) || localStart < now - 120_000L || localStart > now + 120_000L) return false;
             List<SceneTrack.Frame> frames = new java.util.ArrayList<>(source.size());
             int previous = -1;
             for (JsonElement item : source) {
@@ -63,7 +68,8 @@ public final class SceneController {
                 previous = tick;
             }
             if (frames.getFirst().tick() != 0) return false;
-            TRACKS.put(entityId, new SceneTrack(runId, entityId, duration, localStart, List.copyOf(frames)));
+            TRACKS.put(entityId, new SceneTrack(runId, entityId, duration, localStart,
+                    originX, originY, originZ, originYaw, List.copyOf(frames)));
             return true;
         } catch (RuntimeException ignored) { return false; }
     }

@@ -31,4 +31,9 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 25
     options.encoding = 'UTF-8'
 }
-tasks.named('test') { useJUnitPlatform() }
+sourceSets.test.compileClasspath += sourceSets.client.output
+tasks.named('compileTestJava') { dependsOn tasks.named('compileClientJava') }
+tasks.named('test') {
+    dependsOn tasks.named('compileClientJava')
+    useJUnitPlatform()
+}

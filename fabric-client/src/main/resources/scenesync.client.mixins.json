@@ -5,6 +5,7 @@
   "client": [
     "CameraAccessor",
     "HumanoidModelMixin",
+    "AvatarRendererMixin",
     "CameraMixin"
   ],
   "injectors": {

@@ -30,7 +30,7 @@ The client estimates clock offset from the round trip for a shared start time. T
 
 ## Play packet
 
-`scenesync:play` includes `protocol`, `session`, `runId`, `entityId`, `scene`, `durationTicks`, `startAtMillis`, and `frames`. Each frame contains tick, relative x/y/z, yaw/pitch offsets, a built-in animation ID, and camera yaw/pitch/roll/shake. The server sends the bounded timeline to the actor and compatible viewers in the same world and configured view radius.
+`scenesync:play` includes `protocol`, `session`, `runId`, `entityId`, `scene`, `durationTicks`, `startAtMillis`, the actor origin (`originX`, `originY`, `originZ`, `originYaw`), and `frames`. Each frame contains tick, actor-local x/y/z, yaw/pitch offsets, a built-in animation ID, and camera yaw/pitch/roll/shake. Clients rotate actor-local offsets into world space and render all viewers against the shared start time; the actor's own client camera follows that same interpolated location. This is render smoothing, not client authority: Paper still controls server position, collisions and protection checks.
 
 ## Stop packet
 
