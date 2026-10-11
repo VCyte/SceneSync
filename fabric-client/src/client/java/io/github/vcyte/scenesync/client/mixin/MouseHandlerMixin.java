@@ -2,100 +2,81 @@ package io.github.vcyte.scenesync.client.mixin;
 
 import io.github.vcyte.scenesync.client.SceneController;
 import io.github.vcyte.scenesync.client.SceneTrack;
-import com.mojang.blaze3d.Blaze3D;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
-import net.minecraft.util.SmoothDouble;
+import net.minecraft.client.player.LocalPlayer;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Handles scene camera input without redirecting version-sensitive player methods. */
+/** Captures vanilla mouse rotation once, then applies scene camera rules without re-scaling it. */
 @Mixin(MouseHandler.class)
 public abstract class MouseHandlerMixin {
-    @Shadow private double accumulatedDX;
-    @Shadow private double accumulatedDY;
-    @Shadow private double lastHandleMovementTime;
-    @Shadow @org.spongepowered.asm.mixin.Final private SmoothDouble smoothTurnX;
-    @Shadow @org.spongepowered.asm.mixin.Final private SmoothDouble smoothTurnY;
+    private boolean scenesync$captured;
+    private int scenesync$entityId = -1;
+    private SceneTrack.CameraMode scenesync$cameraMode;
+    private float scenesync$beforeYaw;
+    private float scenesync$beforePitch;
 
-    @Inject(method = "handleAccumulatedMovement()V", at = @At("HEAD"), cancellable = true)
-    private void scenesync$handleSceneLook(CallbackInfo ci) {
-        var minecraft = Minecraft.getInstance();
-        var player = minecraft.player;
+    @Inject(method = "handleAccumulatedMovement()V", at = @At("HEAD"))
+    private void scenesync$captureVanillaLook(CallbackInfo ci) {
+        scenesync$captured = false;
+        var player = Minecraft.getInstance().player;
         if (player == null) return;
-        long now = System.currentTimeMillis();
-
-        if (SceneController.usesDetachedLook(player.getId(), now)
-                && !minecraft.options.getCameraType().isFirstPerson()) {
-            double[] delta = scenesync$vanillaDelta(minecraft);
-            SceneController.updateDetachedLook(player.getId(), delta[0], delta[1]);
-            scenesync$clearAccumulated();
-            ci.cancel();
-            return;
-        }
-
-        SceneTrack.Sample sample = SceneController.sample(player.getId(), now);
-        if (sample != null && sample.cameraMode() == SceneTrack.CameraMode.LIMITED) {
-            double[] delta = scenesync$vanillaDelta(minecraft);
-            float yaw = clampRelative(sample.yaw(), player.getYRot() + (float)delta[0],
-                    sample.maxYawDegrees());
-            float pitch = Math.max(sample.pitch() - sample.maxPitchDegrees(),
-                    Math.min(sample.pitch() + sample.maxPitchDegrees(), player.getXRot() + (float)delta[1]));
-            player.setYRot(yaw);
-            player.setXRot(pitch);
-            scenesync$clearAccumulated();
-            ci.cancel();
-            return;
-        }
-
-        if (SceneController.blocksLook(player.getId(), now)) {
-            // Discard input while locked so it cannot be applied after the scene ends.
-            scenesync$clearAccumulated();
-            ci.cancel();
-        }
+        SceneTrack.Sample sample = SceneController.sample(player.getId(), System.currentTimeMillis());
+        if (sample == null) return;
+        scenesync$captured = true;
+        scenesync$entityId = player.getId();
+        scenesync$cameraMode = sample.cameraMode();
+        scenesync$beforeYaw = player.getYRot();
+        scenesync$beforePitch = player.getXRot();
     }
 
-    /** Exact MouseHandler.turnPlayer calculation from Minecraft 26.2. */
-    private double[] scenesync$vanillaDelta(Minecraft minecraft) {
-        double now = Blaze3D.getTime();
-        double frameDelta = now - lastHandleMovementTime;
-        lastHandleMovementTime = now;
-        double sensitivity = minecraft.options.sensitivity().get() * 0.6 + 0.2;
-        double cubic = sensitivity * sensitivity * sensitivity;
-        double scaled = cubic * 8.0;
-        double yaw;
-        double pitch;
-        if (minecraft.options.smoothCamera) {
-            yaw = smoothTurnX.getNewDeltaValue(accumulatedDX * scaled, frameDelta * scaled);
-            pitch = smoothTurnY.getNewDeltaValue(accumulatedDY * scaled, frameDelta * scaled);
-        } else if (minecraft.options.getCameraType().isFirstPerson() && minecraft.player.isScoping()) {
-            smoothTurnX.reset();
-            smoothTurnY.reset();
-            yaw = accumulatedDX * cubic;
-            pitch = accumulatedDY * cubic;
-        } else {
-            smoothTurnX.reset();
-            smoothTurnY.reset();
-            yaw = accumulatedDX * scaled;
-            pitch = accumulatedDY * scaled;
-        }
-        if ((Boolean)minecraft.options.invertMouseX().get()) yaw = -yaw;
-        if ((Boolean)minecraft.options.invertMouseY().get()) pitch = -pitch;
-        return new double[] { yaw, pitch };
-    }
+    @Inject(method = "handleAccumulatedMovement()V", at = @At("TAIL"))
+    private void scenesync$applySceneLook(CallbackInfo ci) {
+        if (!scenesync$captured) return;
+        scenesync$captured = false;
+        var player = Minecraft.getInstance().player;
+        if (player == null || player.getId() != scenesync$entityId) return;
 
-    private void scenesync$clearAccumulated() {
-        accumulatedDX = 0.0;
-        accumulatedDY = 0.0;
+        float vanillaYaw = player.getYRot();
+        float vanillaPitch = player.getXRot();
+        if (scenesync$cameraMode == SceneTrack.CameraMode.FREE_LOOK
+                && !Minecraft.getInstance().options.getCameraType().isFirstPerson()) {
+            // Vanilla already applied the configured sensitivity, smoothing and inversion.
+            // Keep that exact delta for the detached camera, then leave the actor head fixed.
+            SceneController.updateDetachedLook(player.getId(),
+                    wrapDegrees(vanillaYaw - scenesync$beforeYaw), vanillaPitch - scenesync$beforePitch);
+            player.setYRot(scenesync$beforeYaw);
+            player.setXRot(scenesync$beforePitch);
+            return;
+        }
+        if (scenesync$cameraMode == SceneTrack.CameraMode.LIMITED) {
+            SceneTrack.Sample sample = SceneController.sample(player.getId(), System.currentTimeMillis());
+            if (sample != null) {
+                player.setYRot(clampRelative(sample.yaw(), vanillaYaw, sample.maxYawDegrees()));
+                player.setXRot(Math.max(sample.pitch() - sample.maxPitchDegrees(),
+                        Math.min(sample.pitch() + sample.maxPitchDegrees(), vanillaPitch)));
+            }
+            return;
+        }
+        if (scenesync$cameraMode == SceneTrack.CameraMode.LOCKED) {
+            // Consume vanilla input, but do not let it fight the scripted camera.
+            player.setYRot(scenesync$beforeYaw);
+            player.setXRot(scenesync$beforePitch);
+        }
     }
 
     private static float clampRelative(float center, float desired, float limit) {
-        float relative = desired - center;
-        while (relative >= 180.0f) relative -= 360.0f;
-        while (relative < -180.0f) relative += 360.0f;
+        float relative = wrapDegrees(desired - center);
         return center + Math.max(-limit, Math.min(limit, relative));
+    }
+
+    private static float wrapDegrees(float degrees) {
+        degrees %= 360.0f;
+        if (degrees >= 180.0f) degrees -= 360.0f;
+        if (degrees < -180.0f) degrees += 360.0f;
+        return degrees;
     }
 }
