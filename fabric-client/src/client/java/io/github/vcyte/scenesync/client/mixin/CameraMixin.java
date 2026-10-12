@@ -85,7 +85,11 @@ public abstract class CameraMixin {
                 // then render directly from the interpolated scene pivot every frame.
                 Camera camera = (Camera)(Object)this;
                 boolean mirrored = Minecraft.getInstance().options.getCameraType().isMirrored();
-                Vec3 vanillaOffset = camera.position().subtract(interpolatedEntityPosition);
+                // Camera distance is measured from the vanilla eye pivot, not the
+                // player's feet. Measuring from the feet adds the eye-height component
+                // and makes SceneSync F5 subtly farther away than vanilla during a scene.
+                Vec3 vanillaPivot = interpolatedEntityPosition.add(0.0, localPlayer.getEyeHeight(), 0.0);
+                Vec3 vanillaOffset = camera.position().subtract(vanillaPivot);
                 if (scenesync$detachedDistance < 0.0 || scenesync$cameraEntityId != cameraEntity.getId()
                         || scenesync$detachedMirrored != mirrored) {
                     scenesync$detachedDistance = Math.max(0.05, vanillaOffset.length());

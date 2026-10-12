@@ -29,7 +29,9 @@ final class SceneNetwork {
         ClientPlayNetworking.registerGlobalReceiver(BridgePayloads.Hello.TYPE,
                 (payload, context) -> receive(payload.data(), context.client(), this::handshake, false));
         ClientPlayNetworking.registerGlobalReceiver(BridgePayloads.Play.TYPE,
-                (payload, context) -> receive(payload.data(), context.client(), json -> SceneController.acceptPlay(json, serverOffsetMillis), true));
+                (payload, context) -> receive(payload.data(), context.client(), json -> {
+                    if (SceneController.acceptPlay(json, serverOffsetMillis) && isPrepare(json)) sendReady(json);
+                }, true));
         ClientPlayNetworking.registerGlobalReceiver(BridgePayloads.Update.TYPE,
                 (payload, context) -> receive(payload.data(), context.client(), SceneController::acceptDynamicUpdate, true));
         ClientPlayNetworking.registerGlobalReceiver(BridgePayloads.Stop.TYPE,
@@ -81,6 +83,24 @@ final class SceneNetwork {
         helloAttempts++;
         // The server rate-limits to five probes per ten seconds; collect the whole batch at join.
         helloTicks = 0;
+    }
+
+    private boolean isPrepare(JsonObject json) {
+        return json.has("phase") && json.get("phase").isJsonPrimitive()
+                && "prepare".equals(json.get("phase").getAsString());
+    }
+
+    private void sendReady(JsonObject json) {
+        try {
+            JsonObject ready = new JsonObject();
+            ready.addProperty("protocol", PROTOCOL);
+            ready.addProperty("session", boundSession);
+            ready.addProperty("runId", json.get("runId").getAsString());
+            ready.addProperty("entityId", json.get("entityId").getAsInt());
+            ready.addProperty("clientTime", System.currentTimeMillis());
+            ClientPlayNetworking.send(new BridgePayloads.Ready(
+                    ready.toString().getBytes(StandardCharsets.UTF_8)));
+        } catch (RuntimeException ignored) { }
     }
 
     private void handshake(JsonObject json) {

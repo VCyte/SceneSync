@@ -42,6 +42,7 @@ public final class SceneController {
             int duration = integer(json, "durationTicks", -1, 1, 24_000);
             boolean dynamic = json.has("dynamic") && json.get("dynamic").getAsBoolean();
             String runId = string(json, "runId", 64);
+            String phase = string(json, "phase", 16);
             long serverStart = longValue(json, "startAtMillis", -1, 0, Long.MAX_VALUE);
             long now = System.currentTimeMillis();
             long localStart = serverStart - serverOffsetMillis;
@@ -92,8 +93,12 @@ public final class SceneController {
                 SceneTrack.CameraMode mode = SceneTrack.CameraMode.valueOf(rawMode);
                 cameraControl = new SceneTrack.CameraControl(mode, (float)maxYaw, (float)maxPitch);
             }
-            TRACKS.put(entityId, new SceneTrack(runId, entityId, duration, localStart,
-                    originX, originY, originZ, originYaw, originPitch, cameraControl, List.copyOf(frames)));
+            SceneTrack parsed = new SceneTrack(runId, entityId, duration, localStart,
+                    originX, originY, originZ, originYaw, originPitch, cameraControl, List.copyOf(frames));
+            // Preparation is acknowledged without moving or animating the player. The
+            // server sends the final origin and synchronized start after the acknowledgement.
+            if ("prepare".equals(phase)) return true;
+            TRACKS.put(entityId, parsed);
             if (dynamic) DYNAMIC_RUNS.put(entityId, runId); else DYNAMIC_RUNS.remove(entityId);
             POSE_FADES.remove(entityId);
             if (detachedLookEntity == entityId) detachedLookEntity = -1;

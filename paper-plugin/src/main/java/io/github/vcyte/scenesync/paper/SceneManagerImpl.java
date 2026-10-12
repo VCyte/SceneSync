@@ -22,7 +22,7 @@ import java.util.*;
 final class SceneManagerImpl implements SceneManager {
     private static final int MAX_CONFIG_SCENES = 64;
     private static final int MAX_API_SCENES = 128;
-    private static final long START_LEAD_MILLIS = 100L;
+    private static final long PREPARE_TIMEOUT_MILLIS = 5_000L;
     private final SceneSyncPlugin plugin;
     private final SceneBridge bridge;
     private final Map<String, SceneDefinition> configured = new LinkedHashMap<>();
@@ -153,9 +153,8 @@ final class SceneManagerImpl implements SceneManager {
             throw new IllegalArgumentException("actor is not eligible for a dynamic scene");
         stop(actor);
         Location origin = actor.getLocation().clone();
-        long start = System.currentTimeMillis() + START_LEAD_MILLIS;
+        long start = System.currentTimeMillis();
         SceneFrame first = dynamicFrame(scene, actor, origin, 0, start);
-        freezeAtSceneStart(actor);
         SceneDefinition shell = new SceneDefinition(scene.id(), scene.durationTicks(), List.of(first),
                 scene.damagePolicy(), scene.animationDamagePolicies(), scene.cameraSettings());
         DynamicRun run = new DynamicRun(UUID.randomUUID().toString().replace("-", ""), actor, scene, shell, origin, start);
@@ -192,20 +191,25 @@ final class SceneManagerImpl implements SceneManager {
                 || active.size() >= 128) return false;
         stop(actor);
         Location origin = actor.getLocation().clone();
-        SceneDefinition planned = planCollisionSafePath(scene, origin);
-        if (planned == null) return false;
-        freezeAtSceneStart(actor);
         ActiveScene run = new ActiveScene(UUID.randomUUID().toString().replace("-", ""), actor,
-                planned, origin, System.currentTimeMillis() + START_LEAD_MILLIS);
+                scene, origin, Long.MAX_VALUE);
         active.put(actor.getUniqueId(), run);
-        broadcastStart(run);
+        bridge.sendPrepare(actor, run.runId, System.currentTimeMillis(), scene, origin, false);
         return true;
     }
 
-    /** Stop vanilla gravity during the synchronized lead; frame zero owns the start pose. */
-    private static void freezeAtSceneStart(Player actor) {
-        actor.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
-        actor.setFallDistance(0.0f);
+    void acceptSceneReady(Player actor, String runId, int entityId) {
+        requireMainThread();
+        ActiveScene run = active.get(actor.getUniqueId());
+        if (run == null || !run.pending || !run.runId.equals(runId) || run.actor.getEntityId() != entityId) return;
+        Location origin = actor.getLocation().clone();
+        SceneDefinition planned = planCollisionSafePath(run.definition, origin);
+        if (planned == null) { stopInternal(run); return; }
+        run.origin = origin;
+        run.definition = planned;
+        run.startAtMillis = System.currentTimeMillis();
+        run.pending = false;
+        broadcastStart(run);
     }
 
     private void broadcastStart(ActiveScene run) {
@@ -223,6 +227,10 @@ final class SceneManagerImpl implements SceneManager {
             if (!run.actor.isOnline() || run.actor.isDead() || run.actor.isInsideVehicle()
                     || !run.actor.getWorld().equals(run.origin.getWorld())) { stopInternal(run); continue; }
             long now = System.currentTimeMillis();
+            if (run.pending) {
+                if (now - run.createdAtMillis > PREPARE_TIMEOUT_MILLIS) stopInternal(run);
+                continue;
+            }
             if (now < run.startAtMillis) continue;
             int timelineTick = (int)((now - run.startAtMillis) / 50L);
             if (timelineTick > run.definition.durationTicks()) { stopInternal(run); continue; }
@@ -347,6 +355,7 @@ final class SceneManagerImpl implements SceneManager {
             stopDynamic(dynamic); return true;
         }
         if (run == null || to == null || !Bukkit.isPrimaryThread()) return true;
+        if (run.pending) return true;
         if (to.getWorld() == null || !to.getWorld().equals(run.origin.getWorld())) {
             stopInternal(run);
             return true;
@@ -515,8 +524,9 @@ final class SceneManagerImpl implements SceneManager {
     }
 
     private static final class ActiveScene {
-        final String runId; final Player actor; final SceneDefinition definition; final Location origin;
-        final long startAtMillis; final Set<UUID> viewers = new HashSet<>();
+        final String runId; final Player actor; SceneDefinition definition; Location origin;
+        long startAtMillis; final long createdAtMillis = System.currentTimeMillis();
+        boolean pending = true; final Set<UUID> viewers = new HashSet<>();
         int elapsedTicks = -1;
         int movementMismatches;
         ActiveScene(String runId, Player actor, SceneDefinition definition, Location origin, long startAtMillis) {

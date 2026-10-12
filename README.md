@@ -4,7 +4,7 @@
 
 SceneSync is a separate project from SKM. A Paper plugin owns scene definitions, scheduling, animation labels and per-keyframe humanoid pose data, plus path/collision validation. The actor's Fabric client follows the shared timeline using ordinary movement packets rather than a server teleport every tick; compatible viewers render the actor, worn armor, held items, and animation from that same timeline. The client contains a generic six-part humanoid pose renderer, so a plugin can add a new animation ID and bone keyframes without publishing a new client mod for each animation. Movement, jump, sprint, and shift inputs are blocked locally during playback, while mouse look remains free. Paths use the actor's initial facing basis; actor-facing eases into motion and around path corners. Plugins can register scenes through the Java API.
 
-> **Current status: 0.1.6 development preview.** This is a buildable foundation, not a claim of universal mod compatibility or production readiness. The initial target is Minecraft 26.2, Java 25, Paper 26.2, Fabric Loader 0.19.5+, and Fabric API 0.161.0+26.2. Every viewer who should see custom poses or camera effects needs the client mod. Vanilla clients still receive ordinary server movement but cannot render SceneSync-specific animation or camera effects.
+> **Current status: 0.1.7 development preview.** This is a buildable foundation, not a claim of universal mod compatibility or production readiness. The initial target is Minecraft 26.2, Java 25, Paper 26.2, Fabric Loader 0.19.5+, and Fabric API 0.161.0+26.2. Every viewer who should see custom poses or camera effects needs the client mod. Vanilla clients still receive ordinary server movement but cannot render SceneSync-specific animation or camera effects.
 
 ## Project modules
 
@@ -22,9 +22,9 @@ Requires JDK 25. The Gradle wrapper is included.
 
 Artifacts are written to:
 
-- `paper-plugin/build/libs/SceneSync-Paper-0.1.6.jar`
-- `fabric-client/build/libs/scenesync-client-26.2-0.1.6.jar`
-- `scenesync-api/build/libs/scenesync-api-0.1.6.jar`
+- `paper-plugin/build/libs/SceneSync-Paper-0.1.7.jar`
+- `fabric-client/build/libs/scenesync-client-26.2-0.1.7.jar`
+- `scenesync-api/build/libs/scenesync-api-0.1.7.jar`
 
 ## Install
 

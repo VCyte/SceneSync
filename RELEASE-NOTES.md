@@ -1,3 +1,10 @@
+# SceneSync 0.1.7 synchronized-start and camera maintenance release
+
+- Replaced the fixed start delay with a server-to-client prepare acknowledgement and immediate server-authoritative start timestamp.
+- The actor is no longer frozen while waiting for synchronization; the final origin is captured after the client confirms receipt, preventing fall-and-rollback teleports.
+- F5 FREE_LOOK distance is measured from the vanilla eye pivot, removing the subtle extra distance introduced by measuring from the player feet.
+- Added bounded prepare timeout and session/run/entity validation for the acknowledgement path.
+
 # SceneSync 0.1.6 fall-start continuity release
 
 - Freeze vanilla falling velocity during the synchronized start lead.

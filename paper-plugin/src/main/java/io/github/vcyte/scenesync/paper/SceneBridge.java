@@ -19,6 +19,7 @@ import java.util.UUID;
 /** Bounded Paper plugin-message transport. Tokens prevent stale packets crossing reconnects. */
 final class SceneBridge implements PluginMessageListener {
     static final String HELLO = "scenesync:hello";
+    static final String READY = "scenesync:ready";
     static final String PLAY = "scenesync:play";
     static final String UPDATE = "scenesync:update";
     static final String STOP = "scenesync:stop";
@@ -27,12 +28,14 @@ final class SceneBridge implements PluginMessageListener {
     private final SceneSyncPlugin plugin;
     private final Map<UUID, Session> sessions = new HashMap<>();
     private final Map<UUID, Window> helloWindows = new HashMap<>();
+    private SceneManagerImpl manager;
 
     SceneBridge(SceneSyncPlugin plugin) { this.plugin = plugin; }
 
     void register() {
         var messenger = plugin.getServer().getMessenger();
         messenger.registerIncomingPluginChannel(plugin, HELLO, this);
+        messenger.registerIncomingPluginChannel(plugin, READY, this);
         messenger.registerOutgoingPluginChannel(plugin, HELLO);
         messenger.registerOutgoingPluginChannel(plugin, PLAY);
         messenger.registerOutgoingPluginChannel(plugin, UPDATE);
@@ -41,11 +44,23 @@ final class SceneBridge implements PluginMessageListener {
 
     void unregister() {
         plugin.getServer().getMessenger().unregisterIncomingPluginChannel(plugin, HELLO, this);
+        plugin.getServer().getMessenger().unregisterIncomingPluginChannel(plugin, READY, this);
         plugin.getServer().getMessenger().unregisterOutgoingPluginChannel(plugin);
         sessions.clear(); helloWindows.clear();
     }
 
+    void bind(SceneManagerImpl manager) { this.manager = manager; }
+
     @Override public void onPluginMessageReceived(String channel, Player player, byte[] message) {
+        if (READY.equals(channel)) {
+            if (manager == null || message == null || message.length == 0 || message.length > 4096) return;
+            JsonObject ready = parse(message);
+            Session session = sessions.get(player.getUniqueId());
+            if (ready == null || session == null || integer(ready, "protocol", -1) != PROTOCOL
+                    || !session.token().equals(string(ready, "session"))) return;
+            manager.acceptSceneReady(player, string(ready, "runId"), integer(ready, "entityId", -1));
+            return;
+        }
         if (!HELLO.equals(channel) || message == null || message.length == 0 || message.length > 4096) return;
         if (!allowHello(player.getUniqueId())) return;
         JsonObject request = parse(message);
@@ -76,6 +91,16 @@ final class SceneBridge implements PluginMessageListener {
 
     void sendPlay(Player viewer, Player actor, String runId, long startAtMillis, SceneDefinition scene,
                   org.bukkit.Location origin, boolean dynamic) {
+        sendPlay(viewer, actor, runId, startAtMillis, scene, origin, dynamic, "start");
+    }
+
+    void sendPrepare(Player actor, String runId, long startAtMillis, SceneDefinition scene,
+                     org.bukkit.Location origin, boolean dynamic) {
+        sendPlay(actor, actor, runId, startAtMillis, scene, origin, dynamic, "prepare");
+    }
+
+    private void sendPlay(Player viewer, Player actor, String runId, long startAtMillis, SceneDefinition scene,
+                          org.bukkit.Location origin, boolean dynamic, String phase) {
         Session session = sessions.get(viewer.getUniqueId());
         if (session == null) return;
         JsonObject packet = new JsonObject();
@@ -85,6 +110,7 @@ final class SceneBridge implements PluginMessageListener {
         packet.addProperty("entityId", actor.getEntityId());
         packet.addProperty("scene", scene.id());
         packet.addProperty("dynamic", dynamic);
+        packet.addProperty("phase", phase);
         packet.addProperty("durationTicks", scene.durationTicks());
         packet.addProperty("startAtMillis", startAtMillis);
         packet.addProperty("originX", origin.getX());
@@ -201,6 +227,11 @@ final class SceneBridge implements PluginMessageListener {
     private static long longNumber(JsonObject o, String key, long fallback) {
         try { return o.has(key) && o.get(key).getAsJsonPrimitive().isNumber() ? o.get(key).getAsLong() : fallback; }
         catch (RuntimeException ignored) { return fallback; }
+    }
+    private static String string(JsonObject o, String key) {
+        try { return o.has(key) && o.get(key).isJsonPrimitive() && o.get(key).getAsJsonPrimitive().isString()
+                ? o.get(key).getAsString() : null; }
+        catch (RuntimeException ignored) { return null; }
     }
     private static boolean boundedNesting(String s, int max) {
         int depth = 0; boolean quoted = false; boolean escape = false;
