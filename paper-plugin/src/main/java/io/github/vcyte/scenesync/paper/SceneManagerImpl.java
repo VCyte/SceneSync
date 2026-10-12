@@ -23,6 +23,7 @@ final class SceneManagerImpl implements SceneManager {
     private static final int MAX_CONFIG_SCENES = 64;
     private static final int MAX_API_SCENES = 128;
     private static final long PREPARE_TIMEOUT_MILLIS = 5_000L;
+    private static final long START_LEAD_MILLIS = 150L;
     private final SceneSyncPlugin plugin;
     private final SceneBridge bridge;
     private final Map<String, SceneDefinition> configured = new LinkedHashMap<>();
@@ -154,7 +155,7 @@ final class SceneManagerImpl implements SceneManager {
             throw new IllegalArgumentException("actor is not eligible for a dynamic scene");
         stop(actor);
         Location origin = actor.getLocation().clone();
-        long start = System.currentTimeMillis();
+        long start = System.currentTimeMillis() + START_LEAD_MILLIS;
         SceneFrame first = dynamicFrame(scene, actor, origin, 0, start);
         SceneDefinition shell = new SceneDefinition(scene.id(), scene.durationTicks(), List.of(first),
                 scene.damagePolicy(), scene.animationDamagePolicies(), scene.cameraSettings());
@@ -208,7 +209,8 @@ final class SceneManagerImpl implements SceneManager {
         if (planned == null) { stopInternal(run); return; }
         run.origin = origin;
         run.definition = planned;
-        run.startAtMillis = System.currentTimeMillis();
+        // Leave enough time for every viewer to install the same track before frame zero.
+        run.startAtMillis = System.currentTimeMillis() + START_LEAD_MILLIS;
         run.pending = false;
         broadcastStart(run);
     }
@@ -233,8 +235,9 @@ final class SceneManagerImpl implements SceneManager {
                 continue;
             }
             if (now < run.startAtMillis) continue;
-            int timelineTick = (int)((now - run.startAtMillis) / 50L);
-            if (timelineTick > run.definition.durationTicks()) { stopInternal(run); continue; }
+            double timeline = (now - run.startAtMillis) / 50.0;
+            int timelineTick = (int)Math.floor(timeline);
+            if (timeline > run.definition.durationTicks()) { stopInternal(run); continue; }
             boolean validPath = true;
             for (int tick = Math.max(0, run.elapsedTicks + 1); tick <= timelineTick; tick++) {
                 if (tick == 0) {
@@ -255,7 +258,7 @@ final class SceneManagerImpl implements SceneManager {
                 if (!validPath) break;
             }
             if (!validPath) { stopInternal(run); continue; }
-            Location authoritative = locationAt(run, Math.min(timelineTick,
+            Location authoritative = locationAt(run, Math.min(timeline,
                     run.definition.durationTicks()));
             if (authoritative == null || !serverMove(run.actor, authoritative)) {
                 stopInternal(run); continue;
@@ -268,8 +271,9 @@ final class SceneManagerImpl implements SceneManager {
                     || !run.actor.getWorld().equals(run.origin.getWorld())) { stopDynamic(run); continue; }
             long now = System.currentTimeMillis();
             if (now < run.startAtMillis) continue;
-            int tick = (int)((now - run.startAtMillis) / 50L);
-            if (tick > run.scene.durationTicks()) { stopDynamic(run); continue; }
+            double timeline = (now - run.startAtMillis) / 50.0;
+            int tick = (int)Math.floor(timeline);
+            if (timeline > run.scene.durationTicks()) { stopDynamic(run); continue; }
             for (int next = tick; next <= Math.min(run.scene.durationTicks(), tick + 1); next++) {
                 if (run.frames.containsKey(next)) continue;
                 SceneFrame frame;
@@ -288,8 +292,11 @@ final class SceneManagerImpl implements SceneManager {
                 }
             }
             Map.Entry<Integer, SceneFrame> authoritativeFrame = run.frames.floorEntry(tick);
-            if (authoritativeFrame != null
-                    && !serverMove(run.actor, dynamicLocation(run.origin, authoritativeFrame.getValue()))) {
+            Map.Entry<Integer, SceneFrame> nextFrame = run.frames.higherEntry(tick);
+            Location authoritative = authoritativeFrame == null ? null
+                    : interpolateDynamic(run.origin, authoritativeFrame.getValue(),
+                    nextFrame == null ? authoritativeFrame.getValue() : nextFrame.getValue(), timeline - tick);
+            if (authoritative != null && !serverMove(run.actor, authoritative)) {
                 stopDynamic(run); continue;
             }
             syncDynamicViewers(run);
@@ -380,6 +387,16 @@ final class SceneManagerImpl implements SceneManager {
         double worldX = frame.x() * Math.cos(radians) - frame.z() * Math.sin(radians);
         double worldZ = frame.x() * Math.sin(radians) + frame.z() * Math.cos(radians);
         return origin.clone().add(worldX, frame.y(), worldZ);
+    }
+
+    private static Location interpolateDynamic(Location origin, SceneFrame a, SceneFrame b, double t) {
+        double amount = Math.max(0.0, Math.min(1.0, t));
+        double x = a.x() + (b.x() - a.x()) * amount;
+        double y = a.y() + (b.y() - a.y()) * amount;
+        double z = a.z() + (b.z() - a.z()) * amount;
+        double radians = Math.toRadians(origin.getYaw());
+        return origin.clone().add(x * Math.cos(radians) - z * Math.sin(radians), y,
+                x * Math.sin(radians) + z * Math.cos(radians));
     }
 
     void handleDamage(Player actor, org.bukkit.event.entity.EntityDamageEvent event) {

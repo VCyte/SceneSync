@@ -1,3 +1,10 @@
+# SceneSync 0.3.1 timing and start synchronization
+
+- Added a 150 ms synchronized start lead so the actor and viewers receive frame zero before playback begins.
+- Server-authoritative static movement now samples fractional timeline ticks instead of repeating or skipping whole-tick positions.
+- Dynamic server movement now interpolates between generated frames for time-proportional speed.
+- Retains the v0.3.0 removal of client-generated scene movement packets and Paper authority.
+
 # SceneSync 0.3.0 server-authoritative movement
 
 - Removed the client `sendPosition()` scene spoof. SceneSync no longer manufactures movement packets from the Fabric client.
