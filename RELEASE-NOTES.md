@@ -1,3 +1,10 @@
+# SceneSync 0.3.3 separate camera and animated head
+
+- Restored complete movement-input suppression during every scene mode: WASD, jump, sprint and sneak no longer move the actor.
+- FREE_LOOK and LIMITED now move only the camera view; the actor head is no longer driven by mouse/camera yaw or pitch.
+- Authored head/body/limb animation remains independent of the camera in first- and third-person views.
+- LOCKED retains authored action-camera behavior.
+
 # SceneSync 0.3.2 camera input and collision-shape fix
 
 - FREE_LOOK and LIMITED now preserve normal movement, jump, sprint and sneak input; LOCKED remains the only mode that suppresses the complete controller.

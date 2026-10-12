@@ -22,10 +22,10 @@ public abstract class AvatarRendererMixin {
         long now = System.currentTimeMillis();
         SceneTrack.Sample sample = SceneController.sample(state.id, now);
         if (sample != null) {
-            float vanillaBodyYaw = state.bodyRot;
-            float vanillaHeadRelativeYaw = state.yRot;
-            float targetHeadRelativeYaw = sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK
-                    ? wrapDegrees(vanillaBodyYaw + vanillaHeadRelativeYaw - sample.yaw()) : 0.0f;
+            // Camera aim is intentionally not copied into the actor head. FREE_LOOK
+            // and LIMITED show an independent camera while the head stays on the
+            // authored animation pose.
+            float targetHeadRelativeYaw = 0.0f;
             // SceneTrack is already sampled continuously from the shared clock. A second
             // 45 ms render filter made the local actor visibly trail the camera and then
             // snap at the end, especially while falling or carrying momentum.
@@ -51,10 +51,7 @@ public abstract class AvatarRendererMixin {
             SMOOTH_ROOTS.remove(state.id);
             return;
         }
-        float vanillaBodyYaw = state.bodyRot;
-        float vanillaHeadRelativeYaw = state.yRot;
-        float targetHeadRelativeYaw = last.cameraMode() == SceneTrack.CameraMode.FREE_LOOK
-                ? wrapDegrees(vanillaBodyYaw + vanillaHeadRelativeYaw - last.yaw()) : 0.0f;
+        float targetHeadRelativeYaw = 0.0f;
         RenderRoot root = smoothRoot(state.id, last, targetHeadRelativeYaw, now);
         float weight = fade.rootWeight();
         state.x += (root.x - state.x) * weight;

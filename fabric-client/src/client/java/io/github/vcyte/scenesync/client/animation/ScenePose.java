@@ -93,13 +93,13 @@ public final class ScenePose {
     }
 
     private static void applyCameraAim(HumanoidModel<?> model, SceneTrack.Sample sample, float weight) {
-        if (sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK) return;
-        float yaw = sample.cameraMode() == SceneTrack.CameraMode.LIMITED
-                ? Math.max(-sample.maxYawDegrees(), Math.min(sample.maxYawDegrees(), sample.cameraYaw()))
-                : sample.cameraYaw();
-        float pitch = sample.cameraMode() == SceneTrack.CameraMode.LIMITED
-                ? Math.max(-sample.maxPitchDegrees(), Math.min(sample.maxPitchDegrees(), sample.cameraPitch()))
-                : sample.cameraPitch();
+        // FREE_LOOK and LIMITED are camera-only controls. The camera may move within
+        // its view cone, but the actor's head must remain driven solely by the
+        // authored pose/animation. LOCKED is the only mode where camera aim is also
+        // intentionally applied to the head.
+        if (sample.cameraMode() != SceneTrack.CameraMode.LOCKED) return;
+        float yaw = sample.cameraYaw();
+        float pitch = sample.cameraPitch();
         model.head.yRot += (float)Math.toRadians(Math.max(-70.0f, Math.min(70.0f, yaw))) * weight;
         model.head.xRot += (float)Math.toRadians(Math.max(-55.0f, Math.min(55.0f, pitch))) * weight;
     }
