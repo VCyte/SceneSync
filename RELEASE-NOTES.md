@@ -1,3 +1,9 @@
+# SceneSync 0.1.9 Minecraft 26.2 crash fix
+
+- Removed the invalid `@ModifyArgs(at = HEAD)` injection from `ClientChunkCacheMixin`; `@ModifyArgs` only targets invocation instructions and caused `InvalidInjectionException` during login.
+- Replaced it with two bounded `@ModifyVariable(argsOnly = true)` injections targeting the actual `updateViewCenter(int, int)` arguments.
+- Preserved FREE_LOOK camera-centered chunk-cache behavior without breaking client connection initialization.
+
 # SceneSync 0.1.8 detached-camera chunk-cache release
 
 - Keep the client chunk-cache view center aligned with the active FREE_LOOK render camera.
