@@ -11,6 +11,7 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.core.BlockPos;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -197,6 +198,22 @@ public abstract class CameraMixin {
         // ray from the scene pivot to keep the camera out of walls without falling back to
         // the network-tick entity position. This also makes newly loaded rear chunks visible
         // from the actual camera location instead of the stale player location.
+        // The server streams chunks around the actor, not a detached render camera.
+        // Never place the camera in an absent chunk: doing so renders an entire void
+        // chunk until the server happens to stream that area. Fall back smoothly toward
+        // the loaded pivot instead; once the rear chunk arrives the full distance returns.
+        if (!player.level().hasChunkAt(BlockPos.containing(desired))) {
+            Vec3 loaded = pivot;
+            for (int i = 1; i <= 8; i++) {
+                double t = i / 8.0;
+                Vec3 candidate = desired.lerp(pivot, t);
+                if (player.level().hasChunkAt(BlockPos.containing(candidate))) {
+                    loaded = candidate;
+                    break;
+                }
+            }
+            desired = loaded;
+        }
         BlockHitResult hit = player.level().clip(new ClipContext(
                 pivot, desired, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
         Vec3 cameraPosition = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS

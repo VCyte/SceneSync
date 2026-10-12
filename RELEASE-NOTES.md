@@ -1,3 +1,10 @@
+# SceneSync 0.2.0 smooth local playback and unloaded-camera safety
+
+- Restore the local player's real physical position immediately after the scene position is used to build a movement packet; gravity and momentum no longer visibly fight the animation.
+- Remove the second render-time root filter that added latency and caused F5 judder and an end-of-scene snap.
+- Keep the detached camera inside loaded chunks when the server has not streamed the rear camera chunk yet, avoiding full void-chunk rendering; the camera returns to full distance as chunks become available.
+- Removed the unstable ClientChunkCache view-center mixin entirely; vanilla/server-authoritative chunk streaming remains intact.
+
 # SceneSync 0.1.9 Minecraft 26.2 crash fix
 
 - Removed the invalid `@ModifyArgs(at = HEAD)` injection from `ClientChunkCacheMixin`; `@ModifyArgs` only targets invocation instructions and caused `InvalidInjectionException` during login.

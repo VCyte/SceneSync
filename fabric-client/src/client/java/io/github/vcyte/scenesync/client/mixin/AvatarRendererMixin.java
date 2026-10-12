@@ -26,15 +26,17 @@ public abstract class AvatarRendererMixin {
             float vanillaHeadRelativeYaw = state.yRot;
             float targetHeadRelativeYaw = sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK
                     ? wrapDegrees(vanillaBodyYaw + vanillaHeadRelativeYaw - sample.yaw()) : 0.0f;
-            RenderRoot root = smoothRoot(state.id, sample, targetHeadRelativeYaw, now);
-            float startT = Math.max(0.0f, Math.min(1.0f, sample.ticks() / 3.0f));
-            float rootWeight = startT * startT * (3.0f - 2.0f * startT);
-            state.x = lerp(state.x, root.x, rootWeight);
-            state.y = lerp(state.y, root.y, rootWeight);
-            state.z = lerp(state.z, root.z, rootWeight);
-            state.bodyRot = lerpAngle(state.bodyRot, root.bodyYaw, rootWeight);
-            state.yRot = lerpAngle(state.yRot, root.headRelativeYaw, rootWeight);
-            state.xRot += (root.pitch - state.xRot) * rootWeight;
+            // SceneTrack is already sampled continuously from the shared clock. A second
+            // 45 ms render filter made the local actor visibly trail the camera and then
+            // snap at the end, especially while falling or carrying momentum.
+            RenderRoot root = new RenderRoot(sample.worldX(), sample.worldY(), sample.worldZ(),
+                    sample.yaw(), targetHeadRelativeYaw, sample.pitch(), now);
+            state.x = root.x;
+            state.y = root.y;
+            state.z = root.z;
+            state.bodyRot = root.bodyYaw;
+            state.yRot = root.headRelativeYaw;
+            state.xRot = root.pitch;
             return;
         }
         SceneController.VisualFade fade = SceneController.visualFade(state.id, now);

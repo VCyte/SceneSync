@@ -8,7 +8,6 @@
     "KeyboardInputMixin",
     "MouseHandlerMixin",
     "LocalPlayerSceneMixin",
-    "ClientChunkCacheMixin",
     "HumanoidModelMixin",
     "AvatarRendererMixin",
     "CameraMixin"
