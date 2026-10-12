@@ -155,6 +155,7 @@ final class SceneManagerImpl implements SceneManager {
         Location origin = actor.getLocation().clone();
         long start = System.currentTimeMillis() + START_LEAD_MILLIS;
         SceneFrame first = dynamicFrame(scene, actor, origin, 0, start);
+        freezeAtSceneStart(actor);
         SceneDefinition shell = new SceneDefinition(scene.id(), scene.durationTicks(), List.of(first),
                 scene.damagePolicy(), scene.animationDamagePolicies(), scene.cameraSettings());
         DynamicRun run = new DynamicRun(UUID.randomUUID().toString().replace("-", ""), actor, scene, shell, origin, start);
@@ -193,11 +194,18 @@ final class SceneManagerImpl implements SceneManager {
         Location origin = actor.getLocation().clone();
         SceneDefinition planned = planCollisionSafePath(scene, origin);
         if (planned == null) return false;
+        freezeAtSceneStart(actor);
         ActiveScene run = new ActiveScene(UUID.randomUUID().toString().replace("-", ""), actor,
                 planned, origin, System.currentTimeMillis() + START_LEAD_MILLIS);
         active.put(actor.getUniqueId(), run);
         broadcastStart(run);
         return true;
+    }
+
+    /** Stop vanilla gravity during the synchronized lead; frame zero owns the start pose. */
+    private static void freezeAtSceneStart(Player actor) {
+        actor.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
+        actor.setFallDistance(0.0f);
     }
 
     private void broadcastStart(ActiveScene run) {

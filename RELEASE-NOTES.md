@@ -1,3 +1,10 @@
+# SceneSync 0.1.6 fall-start continuity release
+
+- Freeze vanilla falling velocity during the synchronized start lead.
+- Clamp the client pre-roll sample to frame 0 so an airborne player no longer falls and then snaps upward to the captured scene origin.
+- Keep scene effects blended from zero while the frame-0 position remains stable, preserving a smooth authored start.
+- Added a regression test for pre-roll position continuity.
+
 # SceneSync 0.1.5 camera rendering maintenance release
 
 - FREE_LOOK third-person rendering now anchors the camera directly to the frame-rate scene sample instead of the last network-tick player position.

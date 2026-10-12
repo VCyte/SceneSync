@@ -22,7 +22,11 @@ public record SceneTrack(String runId, int entityId, int durationTicks, long loc
 
     public Sample sample(long now) {
         double ticks = (now - localStartMillis) / 50.0;
-        if (ticks < 0 || ticks > durationTicks) return null;
+        // During the shared lead, frame zero is the continuous pre-roll anchor. This
+        // prevents local gravity from moving the player below the captured origin and
+        // causing an upward correction when the synchronized timeline begins.
+        if (ticks < 0) ticks = 0;
+        if (ticks > durationTicks) return null;
         Frame a = frames.getFirst();
         Frame b = a;
         int segment = 0;

@@ -102,6 +102,16 @@ class SceneTrackTest {
         assertEquals(1.0f, track.sample(1_700).sceneBlend(), 1.0e-6f);
         assertEquals(0.0f, track.sample(2_000).sceneBlend(), 1.0e-6f);
     }
+    @Test void preRollClampsToFrameZeroInsteadOfFallingBeforeTheSharedStart() {
+        SceneTrack track = new SceneTrack("run-preroll", 12, 20, 2_000,
+                10, 70, 20, 0,
+                List.of(frame(0, 0, 0, 0, 0), frame(20, 0, 0, 8, 0)));
+        SceneTrack.Sample preRoll = track.sample(1_900);
+        assertEquals(10.0, preRoll.worldX(), 1.0e-6);
+        assertEquals(70.0, preRoll.worldY(), 1.0e-6);
+        assertEquals(20.0, preRoll.worldZ(), 1.0e-6);
+        assertEquals(0.0f, preRoll.sceneBlend(), 1.0e-6f);
+    }
 
     @Test void smoothPathUsesFractionalTimelineAndZeroVelocityAtItsStart() {
         SceneTrack track = new SceneTrack("run-smooth", 13, 24, 1_000,
