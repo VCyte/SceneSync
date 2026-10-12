@@ -36,7 +36,7 @@ public final class SceneSyncPlugin extends JavaPlugin implements Listener {
         command.setExecutor(executor);
         command.setTabCompleter(executor);
         Bukkit.getScheduler().runTaskTimer(this, manager::tick, 1L, 1L);
-        getLogger().info("SceneSync 0.1.7 enabled (protocol 3).");
+        getLogger().info("SceneSync 0.1.8 enabled (protocol 3).");
     }
 
     /** Copy the bundled examples only on the first installation, never on later restarts. */

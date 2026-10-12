@@ -1,3 +1,10 @@
+# SceneSync 0.1.8 detached-camera chunk-cache release
+
+- Keep the client chunk-cache view center aligned with the active FREE_LOOK render camera.
+- Prevent already received rear-camera chunks from being discarded solely because the local player remains the scene actor anchor.
+- Retain the server-to-client prepare acknowledgement start path and exact vanilla F5 eye-pivot distance from 0.1.7.
+- This does not fabricate chunks the server has not sent; server view distance and chunk streaming remain authoritative.
+
 # SceneSync 0.1.7 synchronized-start and camera maintenance release
 
 - Replaced the fixed start delay with a server-to-client prepare acknowledgement and immediate server-authoritative start timestamp.
