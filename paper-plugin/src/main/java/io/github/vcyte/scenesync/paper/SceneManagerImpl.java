@@ -18,7 +18,7 @@ import org.bukkit.entity.Player;
 
 import java.util.*;
 
-/** Main-thread-only scene registry, path validation, and client-driven actor playback. */
+/** Main-thread-only scene registry, collision planning, and server-authoritative actor playback. */
 final class SceneManagerImpl implements SceneManager {
     private static final int MAX_CONFIG_SCENES = 64;
     private static final int MAX_API_SCENES = 128;
@@ -29,6 +29,7 @@ final class SceneManagerImpl implements SceneManager {
     private final Map<String, SceneDefinition> registered = new LinkedHashMap<>();
     private final Map<UUID, ActiveScene> active = new HashMap<>();
     private final Map<UUID, DynamicRun> dynamicActive = new HashMap<>();
+    private final Set<UUID> authoritativeTeleports = new HashSet<>();
     private double viewDistance = 64.0;
 
     SceneManagerImpl(SceneSyncPlugin plugin, SceneBridge bridge) { this.plugin = plugin; this.bridge = bridge; }
@@ -254,6 +255,11 @@ final class SceneManagerImpl implements SceneManager {
                 if (!validPath) break;
             }
             if (!validPath) { stopInternal(run); continue; }
+            Location authoritative = locationAt(run, Math.min(timelineTick,
+                    run.definition.durationTicks()));
+            if (authoritative == null || !serverMove(run.actor, authoritative)) {
+                stopInternal(run); continue;
+            }
             run.elapsedTicks = timelineTick;
             if (run.elapsedTicks % 10 == 0) syncNewViewers(run);
         }
@@ -281,8 +287,32 @@ final class SceneManagerImpl implements SceneManager {
                     if (viewer != null && viewer.isOnline()) bridge.sendDynamicFrame(viewer, run.actor, run.runId, frame);
                 }
             }
+            Map.Entry<Integer, SceneFrame> authoritativeFrame = run.frames.floorEntry(tick);
+            if (authoritativeFrame != null
+                    && !serverMove(run.actor, dynamicLocation(run.origin, authoritativeFrame.getValue()))) {
+                stopDynamic(run); continue;
+            }
             syncDynamicViewers(run);
         }
+    }
+
+    /** Server owns the actor transform; clients only render the synchronized track. */
+    private boolean serverMove(Player actor, Location target) {
+        if (target == null || target.getWorld() == null || !actor.isOnline()) return false;
+        try {
+            authoritativeTeleports.add(actor.getUniqueId());
+            return actor.teleport(target, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.PLUGIN);
+        } catch (RuntimeException failure) {
+            plugin.getLogger().warning("SceneSync could not apply authoritative actor movement: "
+                    + failure.getMessage());
+            return false;
+        } finally {
+            authoritativeTeleports.remove(actor.getUniqueId());
+        }
+    }
+
+    boolean isAuthoritativeTeleport(Player actor) {
+        return actor != null && authoritativeTeleports.contains(actor.getUniqueId());
     }
 
     private void syncDynamicViewers(DynamicRun run) {
@@ -337,50 +367,11 @@ final class SceneManagerImpl implements SceneManager {
     boolean acceptClientMovement(Player actor, Location from, Location to) {
         ActiveScene run = active.get(actor.getUniqueId());
         DynamicRun dynamic = dynamicActive.get(actor.getUniqueId());
-        if (run == null && dynamic != null) {
-            long now = System.currentTimeMillis();
-            int tick = (int)Math.max(0, Math.min(dynamic.scene.durationTicks(),
-                    (now - dynamic.startAtMillis) / 50L));
-            Map.Entry<Integer, SceneFrame> floor = dynamic.frames.floorEntry(tick);
-            SceneFrame frame = floor == null ? null : floor.getValue();
-            Map.Entry<Integer, SceneFrame> ceiling = dynamic.frames.ceilingEntry(tick);
-            SceneFrame next = ceiling == null ? frame : ceiling.getValue();
-            if (frame == null || to == null) return true;
-            Location expected = dynamicLocation(dynamic.origin, frame);
-            Location expectedNext = dynamicLocation(dynamic.origin, next);
-            if (to.distanceSquared(expected) <= 2.25 || to.distanceSquared(expectedNext) <= 2.25) {
-                dynamic.movementMismatches = 0; return true;
-            }
-            if (++dynamic.movementMismatches < 4) return true;
-            stopDynamic(dynamic); return true;
-        }
-        if (run == null || to == null || !Bukkit.isPrimaryThread()) return true;
-        if (run.pending) return true;
-        if (to.getWorld() == null || !to.getWorld().equals(run.origin.getWorld())) {
-            stopInternal(run);
+        if (run != null || dynamic != null) {
+            // Scene motion is applied by the Paper tick loop. Client movement packets
+            // are ordinary input noise while the server owns the actor transform.
             return true;
         }
-        if (from != null && from.getWorld() != null && from.getWorld().equals(to.getWorld())
-                && from.distanceSquared(to) < 1.0e-8) return true;
-        long now = System.currentTimeMillis();
-        if (now < run.startAtMillis) return true;
-        double currentTick = (now - run.startAtMillis) / 50.0;
-        // A movement event can arrive several server ticks after the client sampled
-        // the shared clock. Keep a bounded lag window so one jittery packet cannot
-        // tear down an otherwise valid dash.
-        double firstTick = Math.max(0.0, currentTick - 10.0);
-        double lastTick = Math.min(run.definition.durationTicks(), currentTick + 2.0);
-        if (ScenePathMath.matches(run.definition.frames(), firstTick, lastTick,
-                run.origin.getX(), run.origin.getY(), run.origin.getZ(), run.origin.getYaw(),
-                to.getX(), to.getY(), to.getZ(), 1.0)) {
-            run.movementMismatches = 0;
-            return true;
-        }
-        // Competing movement plugins or a real client desync still ends the track, but
-        // only after a short consecutive-failure grace period. This avoids the observed
-        // intermittent mid-dash freeze caused by one late/out-of-order movement event.
-        if (++run.movementMismatches < 4) return true;
-        stopInternal(run);
         return true;
     }
 

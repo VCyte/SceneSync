@@ -36,7 +36,7 @@ public final class SceneSyncPlugin extends JavaPlugin implements Listener {
         command.setExecutor(executor);
         command.setTabCompleter(executor);
         Bukkit.getScheduler().runTaskTimer(this, manager::tick, 1L, 1L);
-        getLogger().info("SceneSync 0.2.0 enabled (protocol 3).");
+        getLogger().info("SceneSync 0.3.0 enabled (protocol 3).");
     }
 
     /** Copy the bundled examples only on the first installation, never on later restarts. */
@@ -63,13 +63,14 @@ public final class SceneSyncPlugin extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onMovement(PlayerMoveEvent event) {
         if (manager == null || event.getTo() == null) return;
-        if (event instanceof PlayerTeleportEvent) manager.stop(event.getPlayer());
+        if (event instanceof PlayerTeleportEvent && !manager.isAuthoritativeTeleport(event.getPlayer()))
+            manager.stop(event.getPlayer());
         if (!manager.acceptClientMovement(event.getPlayer(), event.getFrom(), event.getTo())) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onExternalTeleport(PlayerTeleportEvent event) {
-        if (manager != null) manager.stop(event.getPlayer());
+        if (manager != null && !manager.isAuthoritativeTeleport(event.getPlayer())) manager.stop(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

@@ -1,3 +1,11 @@
+# SceneSync 0.3.0 server-authoritative movement
+
+- Removed the client `sendPosition()` scene spoof. SceneSync no longer manufactures movement packets from the Fabric client.
+- Paper applies the authored scene transform once per server tick and remains the authority for collision, gravity suppression during playback, and the final actor position.
+- Client movement packets are ignored only while a scene is active; normal movement resumes immediately after stop.
+- This removes the `moved too quickly` warnings caused by 18–24 block client packet deltas and prevents client/server physics disagreement.
+- Preserved frame-rate scene rendering and loaded-chunk camera fallback from 0.2.0.
+
 # SceneSync 0.2.0 smooth local playback and unloaded-camera safety
 
 - Restore the local player's real physical position immediately after the scene position is used to build a movement packet; gravity and momentum no longer visibly fight the animation.

@@ -4,7 +4,7 @@
 
 SceneSync is a separate project from SKM. A Paper plugin owns scene definitions, scheduling, animation labels and per-keyframe humanoid pose data, plus path/collision validation. The actor's Fabric client follows the shared timeline using ordinary movement packets rather than a server teleport every tick; compatible viewers render the actor, worn armor, held items, and animation from that same timeline. The client contains a generic six-part humanoid pose renderer, so a plugin can add a new animation ID and bone keyframes without publishing a new client mod for each animation. Movement, jump, sprint, and shift inputs are blocked locally during playback, while mouse look remains free. Paths use the actor's initial facing basis; actor-facing eases into motion and around path corners. Plugins can register scenes through the Java API.
 
-> **Current status: 0.2.0 development preview.** This is a buildable foundation, not a claim of universal mod compatibility or production readiness. The initial target is Minecraft 26.2, Java 25, Paper 26.2, Fabric Loader 0.19.5+, and Fabric API 0.161.0+26.2. Every viewer who should see custom poses or camera effects needs the client mod. Vanilla clients still receive ordinary server movement but cannot render SceneSync-specific animation or camera effects.
+> **Current status: 0.3.0 development preview.** This is a buildable foundation, not a claim of universal mod compatibility or production readiness. The initial target is Minecraft 26.2, Java 25, Paper 26.2, Fabric Loader 0.19.5+, and Fabric API 0.161.0+26.2. Every viewer who should see custom poses or camera effects needs the client mod. Vanilla clients still receive ordinary server movement but cannot render SceneSync-specific animation or camera effects.
 
 ## Project modules
 
@@ -22,9 +22,9 @@ Requires JDK 25. The Gradle wrapper is included.
 
 Artifacts are written to:
 
-- `paper-plugin/build/libs/SceneSync-Paper-0.2.0.jar`
-- `fabric-client/build/libs/scenesync-client-26.2-0.2.0.jar`
-- `scenesync-api/build/libs/scenesync-api-0.2.0.jar`
+- `paper-plugin/build/libs/SceneSync-Paper-0.3.0.jar`
+- `fabric-client/build/libs/scenesync-client-26.2-0.3.0.jar`
+- `scenesync-api/build/libs/scenesync-api-0.3.0.jar`
 
 ## Install
 
@@ -44,7 +44,7 @@ The plugin has a `demo` scene and a `thunderclap-flash` example in `paper-plugin
 - Network payloads are versioned (protocol 3), size-bounded, parsed with strict bounds, and rate-limited. Generic pose packets are restricted to six known humanoid parts with bounded transforms; unsupported protocol versions are rejected.
 - Scene duration, frame count, coordinates, additive FOV offsets, namespaced animation labels, and bone transforms have explicit limits.
 - Starting a scene never writes to player inventory. Cosmetic equipment replacement and cross-mod animation compatibility are not yet advertised as complete features.
-- Scene start uses a 100 ms shared lead rather than a half-second countdown. Clients collect up to five clock-offset probes after joining and retain the lowest-RTT estimate to reduce player-to-player timeline phase errors.
+- Scene start uses a server-authoritative tick start rather than a half-second countdown. Clients collect up to five clock-offset probes after joining and retain the lowest-RTT estimate to reduce player-to-player timeline phase errors.
 - The actor's starting look pitch is included in the shared scene origin; zero-pitch keyframes mean “keep the player's initial pitch,” not “snap to horizontal.” Root facing eases in and across path turns. Client rendering blends the final sampled root position/rotation to vanilla entity state over 200 ms on early stop and natural completion; movement and input control still end immediately.
 - Client/server path interpolation uses the same shape-preserving cubic curve and fractional-time path checks. Head animation and camera aim are combined then clamped to bounded offsets around the vanilla head pose (55° pitch, 65° yaw, 35° roll) to prevent additive neck flips. Generic and legacy poses ease/crossfade.
 - Disconnect, world change, plugin disable, and explicit stop terminate active playback. Movement, jump, sprint, and shift input suppression ends immediately when the local scene track stops.
