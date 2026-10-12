@@ -15,6 +15,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
+import org.bukkit.util.BoundingBox;
 
 import java.util.*;
 
@@ -465,9 +466,27 @@ final class SceneManagerImpl implements SceneManager {
         if (world == null || !world.getWorldBorder().isInside(location)
                 || location.getY() < world.getMinHeight() || location.getY() + 1.8 >= world.getMaxHeight()) return false;
         if (!world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) return false;
-        return world.getBlockAt(location).isPassable()
-                && world.getBlockAt(location.clone().add(0, 1.0, 0)).isPassable()
-                && world.getBlockAt(location.clone().add(0, 1.7, 0)).isPassable();
+        // Do not classify the block containing the feet as an obstruction. A slab,
+        // carpet, path block or stair occupies that coordinate but its collision top
+        // is the actual floor on which the player can stand. Test real collision-box
+        // overlap against the player's 0.6 x 1.8 bounding box instead.
+        double minX = location.getX() - 0.3, maxX = location.getX() + 0.3;
+        double minY = location.getY(), maxY = location.getY() + 1.8;
+        double minZ = location.getZ() - 0.3, maxZ = location.getZ() + 0.3;
+        int minBlockX = (int)Math.floor(minX), maxBlockX = (int)Math.floor(maxX);
+        int minBlockY = Math.max(world.getMinHeight(), (int)Math.floor(minY - 0.25));
+        int maxBlockY = Math.min(world.getMaxHeight() - 1, (int)Math.floor(maxY));
+        int minBlockZ = (int)Math.floor(minZ), maxBlockZ = (int)Math.floor(maxZ);
+        for (int x = minBlockX; x <= maxBlockX; x++) for (int y = minBlockY; y <= maxBlockY; y++)
+            for (int z = minBlockZ; z <= maxBlockZ; z++) {
+                BoundingBox box = world.getBlockAt(x, y, z).getBoundingBox();
+                if (box.getWidthX() <= 0 || box.getHeight() <= 0 || box.getWidthZ() <= 0) continue;
+                boolean overlaps = box.getMaxX() > minX + 1.0e-5 && box.getMinX() < maxX - 1.0e-5
+                        && box.getMaxY() > minY + 1.0e-5 && box.getMinY() < maxY - 1.0e-5
+                        && box.getMaxZ() > minZ + 1.0e-5 && box.getMinZ() < maxZ - 1.0e-5;
+                if (overlaps) return false;
+            }
+        return true;
     }
 
     /** Sample fast client-driven movement at <=0.25-block intervals so a dash cannot skip a wall. */

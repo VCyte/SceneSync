@@ -192,6 +192,10 @@ public final class SceneController {
     public static boolean controlsInput(int entityId, long now) {
         SceneTrack track = TRACKS.get(entityId);
         if (track == null) return false;
+        // FREE_LOOK and LIMITED are camera/animation controls only: the actor keeps
+        // normal WASD, jump, sprint and sneak input. LOCKED is the sole mode that
+        // owns the complete player controller.
+        if (track.cameraControl().mode() != SceneTrack.CameraMode.LOCKED) return false;
         long end = track.localStartMillis() + (long)track.durationTicks() * 50L;
         if (now <= end) return true;
         if (TRACKS.remove(entityId, track)) beginNaturalFade(entityId, track, now);

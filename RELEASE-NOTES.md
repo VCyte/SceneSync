@@ -1,3 +1,10 @@
+# SceneSync 0.3.2 camera input and collision-shape fix
+
+- FREE_LOOK and LIMITED now preserve normal movement, jump, sprint and sneak input; LOCKED remains the only mode that suppresses the complete controller.
+- First-person FREE_LOOK keeps mouse movement available while the animated head/body timeline remains active.
+- Replaced block occupancy checks with real Bukkit collision-box overlap checks.
+- Slabs, carpets, dirt paths, stairs and other partial-height floor blocks no longer falsely block the authored path; fences and full-height obstructions remain blocked.
+
 # SceneSync 0.3.1 timing and start synchronization
 
 - Added a 150 ms synchronized start lead so the actor and viewers receive frame zero before playback begins.
