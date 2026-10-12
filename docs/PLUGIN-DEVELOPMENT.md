@@ -14,12 +14,12 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'io.github.vcyte.scenesync:scenesync-api:0.1.4'
+    compileOnly 'io.github.vcyte.scenesync:scenesync-api:0.1.5'
     compileOnly 'io.papermc.paper:paper-api:26.2.build.124-stable'
 }
 ```
 
-Download `scenesync-api-0.1.4.jar` from the matching SceneSync GitHub Release into your plugin project's `libs/` directory. For a local multi-project build, use `implementation project(':scenesync-api')`.
+Download `scenesync-api-0.1.5.jar` from the matching SceneSync GitHub Release into your plugin project's `libs/` directory. For a local multi-project build, use `implementation project(':scenesync-api')`.
 
 ## Register and play a scene
 
@@ -48,7 +48,8 @@ Frame positions are **offsets in blocks from the actor's starting position, in t
 
 Camera control is local to the **scene actor**; viewers retain their own camera. The scene-level `camera` setting defaults to `FREE_LOOK` for comfort and backwards compatibility:
 
-- `FREE_LOOK`: preserve the actor's own mouse look. Scene camera yaw/pitch offsets do not control the view.
+- `FREE_LOOK`: preserve the actor's own mouse look. The client renders the local camera directly from the frame-rate scene sample, caches the vanilla third-person distance, and performs a short pivot obstruction trace; this avoids F5 judder caused by network-tick player position updates.
+ Scene camera yaw/pitch offsets do not control the view.
 - `LOCKED`: follow the actor's facing plus the keyframed `camera-yaw`/`camera-pitch` offsets. Mouse look is locked during the scene, with a 300 ms eased entry so the view does not snap at start.
 - `LIMITED`: follow those same authored camera offsets while retaining mouse control inside a forward-facing cone. The sample config uses +/-55 degrees horizontally and +/-30 vertically; configure per scene as needed. The view is clamped relative to the actor's facing, excess mouse travel is discarded at the edge, and reversing direction responds immediately. Clamp bounds accept 0..100 horizontal and 0..70 vertical degrees.
 

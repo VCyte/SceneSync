@@ -7,6 +7,8 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
@@ -33,6 +35,8 @@ public abstract class CameraMixin {
     @Unique private float scenesync$userPitchOffset;
     @Unique private float scenesync$lastAppliedYaw;
     @Unique private float scenesync$lastAppliedPitch;
+    @Unique private double scenesync$detachedDistance = -1.0;
+    @Unique private boolean scenesync$detachedMirrored;
 
     @Inject(method = "update(Lnet/minecraft/client/DeltaTracker;)V", at = @At("TAIL"))
     private void scenesync$applyCameraMotion(DeltaTracker tracker, CallbackInfo ci) {
@@ -40,6 +44,7 @@ public abstract class CameraMixin {
         if (cameraEntity == null) {
             scenesync$wasLocked = false;
             scenesync$limitedActive = false;
+            scenesync$detachedDistance = -1.0;
             return;
         }
         SceneTrack.Sample sample = SceneController.sample(cameraEntity.getId(), System.currentTimeMillis());
@@ -64,30 +69,45 @@ public abstract class CameraMixin {
             scenesync$wasLocked = false;
             scenesync$limitedActive = false;
             scenesync$cameraEntityId = -1;
+            scenesync$detachedDistance = -1.0;
             return;
         }
         if (cameraEntity instanceof LocalPlayer localPlayer) {
             float partialTick = tracker.getGameTimeDeltaPartialTick(false);
             Vec3 interpolatedEntityPosition = cameraEntity.getPosition(partialTick);
-            Vec3 correction = new Vec3(sample.worldX() - interpolatedEntityPosition.x,
-                    sample.worldY() - interpolatedEntityPosition.y, sample.worldZ() - interpolatedEntityPosition.z);
-            setPosition(((Camera)(Object)this).position().add(correction));
 
             if (sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK
                     && !Minecraft.getInstance().options.getCameraType().isFirstPerson()) {
+                // Do not derive the detached camera from the position written by the last
+                // sendPosition() packet. That position advances at network cadence while the
+                // scene timeline is rendered at frame cadence, which produces visible F5
+                // judder for the local player. Keep the vanilla third-person distance once,
+                // then render directly from the interpolated scene pivot every frame.
+                Camera camera = (Camera)(Object)this;
                 boolean mirrored = Minecraft.getInstance().options.getCameraType().isMirrored();
-                float logicalYaw = mirrored ? wrapDegrees(((Camera)(Object)this).yRot() + 180.0f)
-                        : ((Camera)(Object)this).yRot();
-                float logicalPitch = mirrored ? -((Camera)(Object)this).xRot() : ((Camera)(Object)this).xRot();
+                Vec3 vanillaOffset = camera.position().subtract(interpolatedEntityPosition);
+                if (scenesync$detachedDistance < 0.0 || scenesync$cameraEntityId != cameraEntity.getId()
+                        || scenesync$detachedMirrored != mirrored) {
+                    scenesync$detachedDistance = Math.max(0.05, vanillaOffset.length());
+                    scenesync$detachedMirrored = mirrored;
+                }
+                float logicalYaw = mirrored ? wrapDegrees(camera.yRot() + 180.0f) : camera.yRot();
+                float logicalPitch = mirrored ? -camera.xRot() : camera.xRot();
                 SceneController.beginDetachedLook(cameraEntity.getId(), logicalYaw, logicalPitch);
                 SceneController.Look look = SceneController.detachedLook(cameraEntity.getId());
-                if (look != null) applyDetachedCamera(localPlayer, sample, tracker, look.yaw(), look.pitch());
+                if (look != null) applyDetachedCamera(localPlayer, sample, look.yaw(), look.pitch(),
+                        scenesync$detachedDistance);
                 scenesync$wasLocked = false;
                 scenesync$limitedActive = false;
                 scenesync$cameraEntityId = cameraEntity.getId();
                 fov = Math.max(30.0f, Math.min(110.0f, fov + sample.cameraFov() * sample.sceneBlend()));
                 return;
             }
+
+            Vec3 correction = new Vec3(sample.worldX() - interpolatedEntityPosition.x,
+                    sample.worldY() - interpolatedEntityPosition.y, sample.worldZ() - interpolatedEntityPosition.z);
+            scenesync$detachedDistance = -1.0;
+            setPosition(((Camera)(Object)this).position().add(correction));
 
             if (sample.cameraMode() != SceneTrack.CameraMode.FREE_LOOK) {
                 float targetYaw = wrapDegrees(sample.yaw() + sample.cameraYaw());
@@ -163,15 +183,30 @@ public abstract class CameraMixin {
     }
 
     @Unique private void applyDetachedCamera(LocalPlayer player, SceneTrack.Sample sample,
-                                              DeltaTracker tracker, float yaw, float pitch) {
+                                              float yaw, float pitch, double distance) {
         Vec3 pivot = new Vec3(sample.worldX(), sample.worldY() + player.getEyeHeight(), sample.worldZ());
-        Vec3 offset = ((Camera)(Object)this).position().subtract(pivot);
-        double distance = Math.max(0.05, offset.length());
         Vec3 forward = Vec3.directionFromRotation(pitch, yaw);
         boolean mirrored = Minecraft.getInstance().options.getCameraType().isMirrored();
-        setPosition(mirrored ? pivot.add(forward.scale(distance)) : pivot.subtract(forward.scale(distance)));
+        Vec3 desired = mirrored ? pivot.add(forward.scale(distance)) : pivot.subtract(forward.scale(distance));
+        // Vanilla computes third-person obstruction from the current entity position. The
+        // actor is intentionally render-interpolated during SceneSync, so repeat that short
+        // ray from the scene pivot to keep the camera out of walls without falling back to
+        // the network-tick entity position. This also makes newly loaded rear chunks visible
+        // from the actual camera location instead of the stale player location.
+        BlockHitResult hit = player.level().clip(new ClipContext(
+                pivot, desired, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
+        Vec3 cameraPosition = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS
+                ? desired : hit.getLocation().subtract(forward.scale(0.05));
+        setPosition(cameraPosition);
         SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(yaw, pitch, mirrored);
         setRotation(cameraLook.yaw(), cameraLook.pitch());
+    }
+
+    @Unique private void applyDetachedCamera(LocalPlayer player, SceneTrack.Sample sample,
+                                              DeltaTracker tracker, float yaw, float pitch) {
+        Vec3 pivot = new Vec3(sample.worldX(), sample.worldY() + player.getEyeHeight(), sample.worldZ());
+        double distance = Math.max(0.05, ((Camera)(Object)this).position().subtract(pivot).length());
+        applyDetachedCamera(player, sample, yaw, pitch, distance);
     }
 
     @Unique private static float lerpAngle(float from, float to, float amount) {

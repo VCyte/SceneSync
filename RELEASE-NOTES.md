@@ -1,3 +1,10 @@
+# SceneSync 0.1.5 camera rendering maintenance release
+
+- FREE_LOOK third-person rendering now anchors the camera directly to the frame-rate scene sample instead of the last network-tick player position.
+- Cached vanilla third-person distance prevents F5 camera distance jitter while the actor follows a smooth scene path.
+- Camera obstruction is ray-tested from the interpolated scene pivot, keeping the camera out of blocks during fast movement and turns.
+- The local actor camera now follows the same smooth render timeline that compatible viewers use; server movement packets remain authoritative and unchanged.
+
 # SceneSync 0.1.4 security and packaging maintenance release
 
 - Fixed release workflows that referenced obsolete 0.1.0 artifact names.
