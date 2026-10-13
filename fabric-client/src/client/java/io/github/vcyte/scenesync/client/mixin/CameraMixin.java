@@ -4,6 +4,7 @@ import io.github.vcyte.scenesync.client.SceneController;
 import io.github.vcyte.scenesync.client.SceneCameraMath;
 import io.github.vcyte.scenesync.client.SceneTrack;
 import net.minecraft.client.Camera;
+import net.minecraft.client.multiplayer.ClientChunkCache;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -101,6 +102,7 @@ public abstract class CameraMixin {
                 if (look != null) {
                     Vec3 pivot = scenesync$loadedPivot(localPlayer, sample, partialTick);
                     setPosition(pivot);
+                    scenesync$updateChunkCenter(localPlayer, pivot);
                     SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(look.yaw(), look.pitch(), false);
                     setRotation(cameraLook.yaw(), cameraLook.pitch());
                 }
@@ -280,9 +282,22 @@ public abstract class CameraMixin {
         Vec3 cameraPosition = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS
                 ? desired : hit.getLocation().subtract(forward.scale(0.05));
         scenesync$debugLog(player, sample, pivot, desiredLoaded, cameraPosition, partialTick);
+        scenesync$updateChunkCenter(player, cameraPosition);
         setPosition(cameraPosition);
         SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(yaw, pitch, mirrored);
         setRotation(cameraLook.yaw(), cameraLook.pitch());
+    }
+
+    /**
+     * Camera.update normally centers the client cache on the player. A detached
+     * SceneSync camera can be several chunks away, so make already received chunks
+     * addressable from the actual render camera as well. This does not fabricate or
+     * request chunks; the server still controls which chunks are sent.
+     */
+    @Unique private static void scenesync$updateChunkCenter(LocalPlayer player, Vec3 cameraPosition) {
+        BlockPos cameraBlock = BlockPos.containing(cameraPosition);
+        ((ClientChunkCache) player.level().getChunkSource()).updateViewCenter(
+                cameraBlock.getX() >> 4, cameraBlock.getZ() >> 4);
     }
 
     /** Scene pivot if its chunk is loaded; otherwise the nearest loaded point toward the real eye position. */

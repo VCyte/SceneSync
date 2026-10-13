@@ -1,3 +1,10 @@
+# SceneSync 0.3.11 detached-camera chunk cache center
+
+- While FREE_LOOK or LIMITED uses a detached camera, the Fabric client now centers `ClientChunkCache` on the actual rendered camera chunk.
+- This makes chunks that the server has already sent remain addressable when the camera moves away from the actor, instead of being treated as outside the client cache window and rendered as void.
+- The change does not fabricate chunks or bypass server view distance; server-side streaming remains authoritative.
+- The update uses the public 26.2 `ClientChunkCache.updateViewCenter(int, int)` method and does not use the crash-prone `@ModifyArgs` injection previously removed.
+
 # SceneSync 0.3.10 loaded camera pivot and diagnostics
 
 - FREE_LOOK first-person and detached third-person cameras now fall back toward the real interpolated eye position when the scene timeline pivot is in an unloaded chunk.
