@@ -14,6 +14,7 @@ import io.github.vcyte.scenesync.api.DynamicSceneHandle;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.util.BoundingBox;
 
@@ -479,12 +480,21 @@ final class SceneManagerImpl implements SceneManager {
         int minBlockZ = (int)Math.floor(minZ), maxBlockZ = (int)Math.floor(maxZ);
         for (int x = minBlockX; x <= maxBlockX; x++) for (int y = minBlockY; y <= maxBlockY; y++)
             for (int z = minBlockZ; z <= maxBlockZ; z++) {
-                BoundingBox box = world.getBlockAt(x, y, z).getBoundingBox();
-                if (box.getWidthX() <= 0 || box.getHeight() <= 0 || box.getWidthZ() <= 0) continue;
-                boolean overlaps = box.getMaxX() > minX + 1.0e-5 && box.getMinX() < maxX - 1.0e-5
-                        && box.getMaxY() > minY + 1.0e-5 && box.getMinY() < maxY - 1.0e-5
-                        && box.getMaxZ() > minZ + 1.0e-5 && box.getMinZ() < maxZ - 1.0e-5;
-                if (overlaps) return false;
+                Block block = world.getBlockAt(x, y, z);
+                // getBoundingBox() is not a physics shape: it can describe visual or
+                // interaction bounds for blocks the player can walk through. Use the
+                // server's collision shape, which is also what movement physics uses.
+                for (BoundingBox box : block.getCollisionShape().getBoundingBoxes()) {
+                    if (box.getWidthX() <= 0 || box.getHeight() <= 0 || box.getWidthZ() <= 0) continue;
+                    // The block directly beneath the feet is support, not an obstacle.
+                    // This preserves slabs, carpets, path blocks and stair treads while
+                    // still rejecting a wall/fence/ceiling that rises into the body.
+                    if (box.getMaxY() <= minY + 0.025) continue;
+                    boolean overlaps = box.getMaxX() > minX + 1.0e-5 && box.getMinX() < maxX - 1.0e-5
+                            && box.getMaxY() > minY + 0.025 && box.getMinY() < maxY - 1.0e-5
+                            && box.getMaxZ() > minZ + 1.0e-5 && box.getMinZ() < maxZ - 1.0e-5;
+                    if (overlaps) return false;
+                }
             }
         return true;
     }

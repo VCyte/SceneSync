@@ -1,3 +1,10 @@
+# SceneSync 0.3.4 physics collision-shape fix
+
+- Collision planning now uses Bukkit's actual block collision shapes instead of generic block bounding boxes.
+- Non-solid, visual-only and interaction-only blocks no longer falsely stop scene playback.
+- Support geometry below the player's feet is excluded from obstruction checks, preserving carpets, slabs, dirt paths and stair treads.
+- Walls, fences, ceilings and collision shapes that rise into the player's body remain blocked.
+
 # SceneSync 0.3.3 separate camera and animated head
 
 - Restored complete movement-input suppression during every scene mode: WASD, jump, sprint and sneak no longer move the actor.
