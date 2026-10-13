@@ -1,3 +1,10 @@
+# SceneSync 0.3.5 wall collision and first-person camera fix
+
+- Translated Bukkit voxel collision boxes from block-local coordinates into world coordinates before path checks; walls and solid blocks can no longer be bypassed due to coordinate mismatch.
+- Runtime sub-tick path validation now uses the corrected world collision boxes before each authoritative movement.
+- FREE_LOOK first-person now uses the independent camera look accumulator and applies camera rotation at the scene pivot.
+- Mouse rotation remains camera-only in FREE_LOOK while the animated actor head stays independent.
+
 # SceneSync 0.3.4 physics collision-shape fix
 
 - Collision planning now uses Bukkit's actual block collision shapes instead of generic block bounding boxes.

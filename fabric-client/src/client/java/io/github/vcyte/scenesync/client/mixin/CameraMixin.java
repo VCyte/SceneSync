@@ -78,6 +78,26 @@ public abstract class CameraMixin {
             Vec3 interpolatedEntityPosition = cameraEntity.getPosition(partialTick);
 
             if (sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK
+                    && Minecraft.getInstance().options.getCameraType().isFirstPerson()) {
+                // First-person FREE_LOOK uses the same independent look accumulator as
+                // third-person. Vanilla's player rotation is restored by MouseHandlerMixin
+                // so the camera can turn while the animated head remains on its track.
+                SceneController.beginDetachedLook(cameraEntity.getId(), cameraEntity.getYRot(), cameraEntity.getXRot());
+                SceneController.Look look = SceneController.detachedLook(cameraEntity.getId());
+                if (look != null) {
+                    Vec3 pivot = new Vec3(sample.worldX(), sample.worldY() + localPlayer.getEyeHeight(), sample.worldZ());
+                    setPosition(pivot);
+                    SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(look.yaw(), look.pitch(), false);
+                    setRotation(cameraLook.yaw(), cameraLook.pitch());
+                }
+                scenesync$wasLocked = false;
+                scenesync$limitedActive = false;
+                scenesync$cameraEntityId = cameraEntity.getId();
+                fov = Math.max(30.0f, Math.min(110.0f, fov + sample.cameraFov() * sample.sceneBlend()));
+                return;
+            }
+
+            if (sample.cameraMode() == SceneTrack.CameraMode.FREE_LOOK
                     && !Minecraft.getInstance().options.getCameraType().isFirstPerson()) {
                 // Do not derive the detached camera from the position written by the last
                 // sendPosition() packet. That position advances at network cadence while the

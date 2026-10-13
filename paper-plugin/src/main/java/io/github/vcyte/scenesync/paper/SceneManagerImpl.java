@@ -484,7 +484,12 @@ final class SceneManagerImpl implements SceneManager {
                 // getBoundingBox() is not a physics shape: it can describe visual or
                 // interaction bounds for blocks the player can walk through. Use the
                 // server's collision shape, which is also what movement physics uses.
-                for (BoundingBox box : block.getCollisionShape().getBoundingBoxes()) {
+                for (BoundingBox localBox : block.getCollisionShape().getBoundingBoxes()) {
+                    // Bukkit's VoxelShape boxes are block-local; translate them to
+                    // world coordinates before comparing them with the player box.
+                    BoundingBox box = new BoundingBox(localBox.getMinX() + x, localBox.getMinY() + y,
+                            localBox.getMinZ() + z, localBox.getMaxX() + x, localBox.getMaxY() + y,
+                            localBox.getMaxZ() + z);
                     if (box.getWidthX() <= 0 || box.getHeight() <= 0 || box.getWidthZ() <= 0) continue;
                     // The block directly beneath the feet is support, not an obstacle.
                     // This preserves slabs, carpets, path blocks and stair treads while

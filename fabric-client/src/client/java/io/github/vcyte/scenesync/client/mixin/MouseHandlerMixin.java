@@ -42,10 +42,10 @@ public abstract class MouseHandlerMixin {
 
         float vanillaYaw = player.getYRot();
         float vanillaPitch = player.getXRot();
-        if (scenesync$cameraMode == SceneTrack.CameraMode.FREE_LOOK
-                && !Minecraft.getInstance().options.getCameraType().isFirstPerson()) {
+        if (scenesync$cameraMode == SceneTrack.CameraMode.FREE_LOOK) {
             // Vanilla already applied the configured sensitivity, smoothing and inversion.
-            // Keep that exact delta for the detached camera, then leave the actor head fixed.
+            // Keep that exact delta for the independent camera in both first- and
+            // third-person, then restore the actor rotation so the animated head stays independent.
             SceneController.updateDetachedLook(player.getId(),
                     wrapDegrees(vanillaYaw - scenesync$beforeYaw), vanillaPitch - scenesync$beforePitch);
             player.setYRot(scenesync$beforeYaw);
