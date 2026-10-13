@@ -8,6 +8,7 @@ import net.minecraft.client.multiplayer.ClientChunkCache;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.entity.Entity;
@@ -102,7 +103,6 @@ public abstract class CameraMixin {
                 if (look != null) {
                     Vec3 pivot = scenesync$loadedPivot(localPlayer, sample, partialTick);
                     setPosition(pivot);
-                    scenesync$updateChunkCenter(localPlayer, pivot);
                     SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(look.yaw(), look.pitch(), false);
                     setRotation(cameraLook.yaw(), cameraLook.pitch());
                 }
@@ -262,7 +262,7 @@ public abstract class CameraMixin {
         Vec3 forward = Vec3.directionFromRotation(pitch, yaw);
         boolean mirrored = Minecraft.getInstance().options.getCameraType().isMirrored();
         Vec3 desired = mirrored ? pivot.add(forward.scale(distance)) : pivot.subtract(forward.scale(distance));
-        boolean desiredLoaded = player.level().hasChunkAt(BlockPos.containing(desired));
+        boolean desiredLoaded = scenesync$isChunkLoaded(player, desired);
         // The server streams chunks around the actor, not a detached render camera. Never
         // place the camera in an absent chunk: step back toward the loaded pivot in small
         // increments so the camera keeps as much of the F5 distance as is available.
@@ -270,8 +270,8 @@ public abstract class CameraMixin {
             Vec3 loaded = pivot;
             for (int i = 1; i <= 16; i++) {
                 Vec3 candidate = desired.lerp(pivot, i / 16.0);
-                if (player.level().hasChunkAt(BlockPos.containing(candidate))) {
-                    loaded = candidate;
+                if (scenesync$isChunkLoaded(player, candidate)) {
+                    desired = candidate;
                     break;
                 }
             }
@@ -282,32 +282,26 @@ public abstract class CameraMixin {
         Vec3 cameraPosition = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS
                 ? desired : hit.getLocation().subtract(forward.scale(0.05));
         scenesync$debugLog(player, sample, pivot, desiredLoaded, cameraPosition, partialTick);
-        scenesync$updateChunkCenter(player, cameraPosition);
         setPosition(cameraPosition);
         SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(yaw, pitch, mirrored);
         setRotation(cameraLook.yaw(), cameraLook.pitch());
     }
 
-    /**
-     * Camera.update normally centers the client cache on the player. A detached
-     * SceneSync camera can be several chunks away, so make already received chunks
-     * addressable from the actual render camera as well. This does not fabricate or
-     * request chunks; the server still controls which chunks are sent.
-     */
-    @Unique private static void scenesync$updateChunkCenter(LocalPlayer player, Vec3 cameraPosition) {
-        BlockPos cameraBlock = BlockPos.containing(cameraPosition);
-        ((ClientChunkCache) player.level().getChunkSource()).updateViewCenter(
-                cameraBlock.getX() >> 4, cameraBlock.getZ() >> 4);
+    /** ClientLevel.hasChunk is not a loaded-chunk test in 26.2; it returns true. */
+    @Unique private static boolean scenesync$isChunkLoaded(LocalPlayer player, Vec3 position) {
+        BlockPos block = BlockPos.containing(position);
+        ClientChunkCache chunks = (ClientChunkCache) player.level().getChunkSource();
+        return chunks.getChunk(block.getX() >> 4, block.getZ() >> 4, ChunkStatus.FULL, false) != null;
     }
 
     /** Scene pivot if its chunk is loaded; otherwise the nearest loaded point toward the real eye position. */
     @Unique private static Vec3 scenesync$loadedPivot(LocalPlayer player, SceneTrack.Sample sample, float partialTick) {
         Vec3 scenePivot = new Vec3(sample.worldX(), sample.worldY() + player.getEyeHeight(), sample.worldZ());
-        if (player.level().hasChunkAt(BlockPos.containing(scenePivot))) return scenePivot;
+        if (scenesync$isChunkLoaded(player, scenePivot)) return scenePivot;
         Vec3 entityPivot = player.getEyePosition(partialTick);
         for (int i = 1; i <= 16; i++) {
             Vec3 candidate = scenePivot.lerp(entityPivot, i / 16.0);
-            if (player.level().hasChunkAt(BlockPos.containing(candidate))) return candidate;
+            if (scenesync$isChunkLoaded(player, candidate)) return candidate;
         }
         return entityPivot;
     }
@@ -320,8 +314,8 @@ public abstract class CameraMixin {
         if (now - scenesync$lastDebugMillis < 1000L) return;
         scenesync$lastDebugMillis = now;
         Vec3 scenePivot = new Vec3(sample.worldX(), sample.worldY() + player.getEyeHeight(), sample.worldZ());
-        boolean pivotLoaded = player.level().hasChunkAt(BlockPos.containing(scenePivot));
-        boolean cameraChunkLoaded = player.level().hasChunkAt(BlockPos.containing(cameraPosition));
+        boolean pivotLoaded = scenesync$isChunkLoaded(player, scenePivot);
+        boolean cameraChunkLoaded = scenesync$isChunkLoaded(player, cameraPosition);
         io.github.vcyte.scenesync.client.SceneSyncClient.LOGGER.info(
                 "[camera-debug] mode={} scenePivotLoaded={} desiredLoaded={} cameraChunkLoaded={} "
                         + "sceneVsEntity={} blocks cameraDistance={}",

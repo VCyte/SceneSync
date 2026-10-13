@@ -1,3 +1,10 @@
+# SceneSync 0.3.12 actual loaded-chunk camera fallback
+
+- Fixed the root cause of the void-camera fallback: `ClientLevel.hasChunk()` returns `true` in Minecraft 26.2 and cannot be used as a loaded-chunk test.
+- FREE_LOOK and LIMITED now query `ClientChunkCache.getChunk(..., ChunkStatus.FULL, false)` and only place the camera in a chunk whose full data was actually received by the client.
+- Removed the ineffective detached-camera `updateViewCenter()` call. In 26.2 it only changes two cache-center integers; it does not request chunks from the server and can make actor chunks appear out of range.
+- The client now falls back toward the real player eye position whenever the scene pivot or third-person camera destination is not actually present in the client cache.
+
 # SceneSync 0.3.11 detached-camera chunk cache center
 
 - While FREE_LOOK or LIMITED uses a detached camera, the Fabric client now centers `ClientChunkCache` on the actual rendered camera chunk.
