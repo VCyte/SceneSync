@@ -38,6 +38,7 @@ public abstract class CameraMixin {
     @Unique private float scenesync$lastAppliedPitch;
     @Unique private double scenesync$detachedDistance = -1.0;
     @Unique private boolean scenesync$detachedMirrored;
+    @Unique private long scenesync$lastDebugMillis;
 
     @Inject(method = "update(Lnet/minecraft/client/DeltaTracker;)V", at = @At("TAIL"))
     private void scenesync$applyCameraMotion(DeltaTracker tracker, CallbackInfo ci) {
@@ -98,7 +99,7 @@ public abstract class CameraMixin {
                 SceneController.beginDetachedLook(cameraEntity.getId(), cameraEntity.getYRot(), cameraEntity.getXRot());
                 SceneController.Look look = SceneController.detachedLook(cameraEntity.getId());
                 if (look != null) {
-                    Vec3 pivot = new Vec3(sample.worldX(), sample.worldY() + localPlayer.getEyeHeight(), sample.worldZ());
+                    Vec3 pivot = scenesync$loadedPivot(localPlayer, sample, partialTick);
                     setPosition(pivot);
                     SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(look.yaw(), look.pitch(), false);
                     setRotation(cameraLook.yaw(), cameraLook.pitch());
@@ -251,24 +252,22 @@ public abstract class CameraMixin {
 
     @Unique private void applyDetachedCamera(LocalPlayer player, SceneTrack.Sample sample,
                                               float yaw, float pitch, double distance) {
-        Vec3 pivot = new Vec3(sample.worldX(), sample.worldY() + player.getEyeHeight(), sample.worldZ());
+        float partialTick = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        // The scene timeline runs on the client clock and can be ahead of the position Paper has
+        // reached (and streamed chunks around). Never anchor the camera in a chunk the client
+        // does not have; fall back toward the real, interpolated eye position instead.
+        Vec3 pivot = scenesync$loadedPivot(player, sample, partialTick);
         Vec3 forward = Vec3.directionFromRotation(pitch, yaw);
         boolean mirrored = Minecraft.getInstance().options.getCameraType().isMirrored();
         Vec3 desired = mirrored ? pivot.add(forward.scale(distance)) : pivot.subtract(forward.scale(distance));
-        // Vanilla computes third-person obstruction from the current entity position. The
-        // actor is intentionally render-interpolated during SceneSync, so repeat that short
-        // ray from the scene pivot to keep the camera out of walls without falling back to
-        // the network-tick entity position. This also makes newly loaded rear chunks visible
-        // from the actual camera location instead of the stale player location.
-        // The server streams chunks around the actor, not a detached render camera.
-        // Never place the camera in an absent chunk: doing so renders an entire void
-        // chunk until the server happens to stream that area. Fall back smoothly toward
-        // the loaded pivot instead; once the rear chunk arrives the full distance returns.
-        if (!player.level().hasChunkAt(BlockPos.containing(desired))) {
+        boolean desiredLoaded = player.level().hasChunkAt(BlockPos.containing(desired));
+        // The server streams chunks around the actor, not a detached render camera. Never
+        // place the camera in an absent chunk: step back toward the loaded pivot in small
+        // increments so the camera keeps as much of the F5 distance as is available.
+        if (!desiredLoaded) {
             Vec3 loaded = pivot;
-            for (int i = 1; i <= 8; i++) {
-                double t = i / 8.0;
-                Vec3 candidate = desired.lerp(pivot, t);
+            for (int i = 1; i <= 16; i++) {
+                Vec3 candidate = desired.lerp(pivot, i / 16.0);
                 if (player.level().hasChunkAt(BlockPos.containing(candidate))) {
                     loaded = candidate;
                     break;
@@ -280,9 +279,40 @@ public abstract class CameraMixin {
                 pivot, desired, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
         Vec3 cameraPosition = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS
                 ? desired : hit.getLocation().subtract(forward.scale(0.05));
+        scenesync$debugLog(player, sample, pivot, desiredLoaded, cameraPosition, partialTick);
         setPosition(cameraPosition);
         SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(yaw, pitch, mirrored);
         setRotation(cameraLook.yaw(), cameraLook.pitch());
+    }
+
+    /** Scene pivot if its chunk is loaded; otherwise the nearest loaded point toward the real eye position. */
+    @Unique private static Vec3 scenesync$loadedPivot(LocalPlayer player, SceneTrack.Sample sample, float partialTick) {
+        Vec3 scenePivot = new Vec3(sample.worldX(), sample.worldY() + player.getEyeHeight(), sample.worldZ());
+        if (player.level().hasChunkAt(BlockPos.containing(scenePivot))) return scenePivot;
+        Vec3 entityPivot = player.getEyePosition(partialTick);
+        for (int i = 1; i <= 16; i++) {
+            Vec3 candidate = scenePivot.lerp(entityPivot, i / 16.0);
+            if (player.level().hasChunkAt(BlockPos.containing(candidate))) return candidate;
+        }
+        return entityPivot;
+    }
+
+    /** Enable with the JVM argument -Dscenesync.debugCamera=true. Logs at most once per second. */
+    @Unique private void scenesync$debugLog(LocalPlayer player, SceneTrack.Sample sample, Vec3 pivot,
+                                             boolean desiredLoaded, Vec3 cameraPosition, float partialTick) {
+        if (!Boolean.getBoolean("scenesync.debugCamera")) return;
+        long now = System.currentTimeMillis();
+        if (now - scenesync$lastDebugMillis < 1000L) return;
+        scenesync$lastDebugMillis = now;
+        Vec3 scenePivot = new Vec3(sample.worldX(), sample.worldY() + player.getEyeHeight(), sample.worldZ());
+        boolean pivotLoaded = player.level().hasChunkAt(BlockPos.containing(scenePivot));
+        boolean cameraChunkLoaded = player.level().hasChunkAt(BlockPos.containing(cameraPosition));
+        io.github.vcyte.scenesync.client.SceneSyncClient.LOGGER.info(
+                "[camera-debug] mode={} scenePivotLoaded={} desiredLoaded={} cameraChunkLoaded={} "
+                        + "sceneVsEntity={} blocks cameraDistance={}",
+                sample.cameraMode(), pivotLoaded, desiredLoaded, cameraChunkLoaded,
+                String.format("%.2f", scenePivot.distanceTo(player.getEyePosition(partialTick))),
+                String.format("%.2f", cameraPosition.distanceTo(pivot)));
     }
 
     @Unique private void applyDetachedCamera(LocalPlayer player, SceneTrack.Sample sample,

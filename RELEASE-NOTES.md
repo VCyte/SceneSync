@@ -1,3 +1,10 @@
+# SceneSync 0.3.10 loaded camera pivot and diagnostics
+
+- FREE_LOOK first-person and detached third-person cameras now fall back toward the real interpolated eye position when the scene timeline pivot is in an unloaded chunk.
+- Detached camera fallback probing increased from 8 to 16 steps.
+- Added optional once-per-second diagnostics with `-Dscenesync.debugCamera=true`: scene pivot loading, desired camera loading, final camera-chunk loading, scene/entity distance and camera distance.
+- Helps distinguish missing chunk streaming from camera rendering issues during fast dashes and high-latency playback.
+
 # SceneSync 0.3.9 commit final first-person aim
 
 - At scene end, first-person FREE_LOOK and LIMITED commit the independent camera's final yaw/pitch to the player body.
