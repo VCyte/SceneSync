@@ -1,3 +1,10 @@
+# SceneSync 0.3.9 commit final first-person aim
+
+- At scene end, first-person FREE_LOOK and LIMITED commit the independent camera's final yaw/pitch to the player body.
+- Prevents the screen and body from snapping back to the pre-scene aim.
+- The final LIMITED aim remains inside its configured cone before being committed.
+- Animated head/body pose remains independent during playback and transitions cleanly to the final aim at the end.
+
 # SceneSync 0.3.8 limited boundary clamp fix
 
 - LIMITED camera input is now clamped on every mouse event against the current scene-relative cone.

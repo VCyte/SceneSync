@@ -50,13 +50,26 @@ public abstract class CameraMixin {
         }
         SceneTrack.Sample sample = SceneController.sample(cameraEntity.getId(), System.currentTimeMillis());
         if (sample == null) {
-            if (cameraEntity instanceof LocalPlayer localPlayer
-                    && !Minecraft.getInstance().options.getCameraType().isFirstPerson()) {
+            if (cameraEntity instanceof LocalPlayer localPlayer) {
                 SceneController.VisualFade fade = SceneController.visualFade(
                         cameraEntity.getId(), System.currentTimeMillis());
                 SceneController.Look current = fade == null ? null
                         : SceneController.detachedLook(cameraEntity.getId());
                 if (fade != null && current != null
+                        && (fade.sample().cameraMode() == SceneTrack.CameraMode.FREE_LOOK
+                        || fade.sample().cameraMode() == SceneTrack.CameraMode.LIMITED)
+                        && Minecraft.getInstance().options.getCameraType().isFirstPerson()) {
+                    // Commit the final independent aim to the actor before the scene
+                    // track disappears. This prevents first-person FREE_LOOK/LIMITED
+                    // from snapping back to the pre-scene body direction.
+                    localPlayer.setYRot(current.yaw());
+                    localPlayer.setXRot(current.pitch());
+                    setRotation(current.yaw(), current.pitch());
+                    SceneController.clearDetachedLook(cameraEntity.getId());
+                    return;
+                }
+                if (fade != null && current != null
+                        && !Minecraft.getInstance().options.getCameraType().isFirstPerson()
                         && fade.sample().cameraMode() == SceneTrack.CameraMode.FREE_LOOK) {
                     float blend = 1.0f - fade.rootWeight();
                     float yaw = lerpAngle(current.yaw(), localPlayer.getYRot(), blend);
