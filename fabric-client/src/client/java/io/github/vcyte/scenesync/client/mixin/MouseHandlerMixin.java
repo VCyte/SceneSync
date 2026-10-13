@@ -57,8 +57,9 @@ public abstract class MouseHandlerMixin {
             // independent look state, then restore the actor rotation so the animated
             // head never inherits the user's camera aim.
             SceneController.beginDetachedLook(player.getId(), scenesync$beforeYaw, scenesync$beforePitch);
-            SceneController.updateDetachedLook(player.getId(),
-                    wrapDegrees(vanillaYaw - scenesync$beforeYaw), vanillaPitch - scenesync$beforePitch);
+            SceneController.updateLimitedLook(player.getId(),
+                    wrapDegrees(vanillaYaw - scenesync$beforeYaw), vanillaPitch - scenesync$beforePitch,
+                    System.currentTimeMillis());
             player.setYRot(scenesync$beforeYaw);
             player.setXRot(scenesync$beforePitch);
             return;

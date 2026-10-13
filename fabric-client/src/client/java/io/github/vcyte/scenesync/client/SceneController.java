@@ -231,6 +231,19 @@ public final class SceneController {
         detachedLookPitch = Math.max(-90.0f, Math.min(90.0f, detachedLookPitch + (float)pitchDelta));
     }
 
+    /** LIMITED never wraps past its cone: excess input is discarded at the boundary. */
+    public static void updateLimitedLook(int entityId, double yawDelta, double pitchDelta, long now) {
+        if (detachedLookEntity != entityId) return;
+        SceneTrack.Sample sample = sample(entityId, now);
+        if (sample == null) return;
+        float yawRelative = wrapDegrees(detachedLookYaw - sample.yaw() + (float) yawDelta);
+        float pitchRelative = detachedLookPitch - sample.pitch() + (float) pitchDelta;
+        yawRelative = Math.max(-sample.maxYawDegrees(), Math.min(sample.maxYawDegrees(), yawRelative));
+        pitchRelative = Math.max(-sample.maxPitchDegrees(), Math.min(sample.maxPitchDegrees(), pitchRelative));
+        detachedLookYaw = wrapDegrees(sample.yaw() + yawRelative);
+        detachedLookPitch = Math.max(-90.0f, Math.min(90.0f, sample.pitch() + pitchRelative));
+    }
+
     public static void clearDetachedLook(int entityId) {
         if (detachedLookEntity == entityId) detachedLookEntity = -1;
     }

@@ -1,3 +1,10 @@
+# SceneSync 0.3.8 limited boundary clamp fix
+
+- LIMITED camera input is now clamped on every mouse event against the current scene-relative cone.
+- Excess input at the yaw/pitch edge is discarded instead of being accumulated and wrapped through 180/360 degrees.
+- Reversing direction remains responsive from the exact boundary.
+- Prevents F3/F5 LIMITED view from jumping to the opposite side.
+
 # SceneSync 0.3.7 limited third-person camera fix
 
 - LIMITED now uses a detached scene pivot and exact vanilla F3/F5 distance in third-person.
