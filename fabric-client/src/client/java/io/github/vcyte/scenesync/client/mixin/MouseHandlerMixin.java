@@ -53,12 +53,14 @@ public abstract class MouseHandlerMixin {
             return;
         }
         if (scenesync$cameraMode == SceneTrack.CameraMode.LIMITED) {
-            SceneTrack.Sample sample = SceneController.sample(player.getId(), System.currentTimeMillis());
-            if (sample != null) {
-                player.setYRot(clampRelative(sample.yaw(), vanillaYaw, sample.maxYawDegrees()));
-                player.setXRot(Math.max(sample.pitch() - sample.maxPitchDegrees(),
-                        Math.min(sample.pitch() + sample.maxPitchDegrees(), vanillaPitch)));
-            }
+            // LIMITED is also camera-only. Accumulate the vanilla mouse delta in the
+            // independent look state, then restore the actor rotation so the animated
+            // head never inherits the user's camera aim.
+            SceneController.beginDetachedLook(player.getId(), scenesync$beforeYaw, scenesync$beforePitch);
+            SceneController.updateDetachedLook(player.getId(),
+                    wrapDegrees(vanillaYaw - scenesync$beforeYaw), vanillaPitch - scenesync$beforePitch);
+            player.setYRot(scenesync$beforeYaw);
+            player.setXRot(scenesync$beforePitch);
             return;
         }
         if (scenesync$cameraMode == SceneTrack.CameraMode.LOCKED) {

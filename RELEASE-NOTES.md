@@ -1,3 +1,10 @@
+# SceneSync 0.3.6 limited camera separation
+
+- LIMITED now uses the same independent camera look accumulator in first- and third-person.
+- Mouse movement is clamped to the configured yaw/pitch cone without changing the actor rotation.
+- Authored head/body/limb animation remains independent from the LIMITED camera.
+- Movement, jump, sprint and sneak remain suppressed during playback.
+
 # SceneSync 0.3.5 wall collision and first-person camera fix
 
 - Translated Bukkit voxel collision boxes from block-local coordinates into world coordinates before path checks; walls and solid blocks can no longer be bypassed due to coordinate mismatch.

@@ -159,22 +159,15 @@ public abstract class CameraMixin {
                     float maxPitch = sample.maxPitchDegrees();
                     float centerYaw = clamp(sample.cameraYaw(), -maxYaw, maxYaw);
                     float centerPitch = clamp(sample.cameraPitch(), -maxPitch, maxPitch);
-                    float limitedTargetYaw = wrapDegrees(sample.yaw() + centerYaw);
-                    float limitedTargetPitch = clamp(sample.pitch() + centerPitch, -90.0f, 90.0f);
-                    if (!scenesync$limitedActive || scenesync$cameraEntityId != cameraEntity.getId()) {
-                        scenesync$userYawOffset = SceneCameraMath.clampUserOffset(
-                                wrapDegrees(localPlayer.getYRot() - limitedTargetYaw), centerYaw, maxYaw);
-                        scenesync$userPitchOffset = SceneCameraMath.clampUserOffset(
-                                localPlayer.getXRot() - limitedTargetPitch, centerPitch, maxPitch);
-                        scenesync$limitedActive = true;
-                    } else {
-                        scenesync$userYawOffset = SceneCameraMath.clampUserOffset(
-                                scenesync$userYawOffset + wrapDegrees(localPlayer.getYRot() - scenesync$lastAppliedYaw),
-                                centerYaw, maxYaw);
-                        scenesync$userPitchOffset = SceneCameraMath.clampUserOffset(
-                                scenesync$userPitchOffset + localPlayer.getXRot() - scenesync$lastAppliedPitch,
-                                centerPitch, maxPitch);
-                    }
+                    SceneController.beginDetachedLook(cameraEntity.getId(), localPlayer.getYRot(), localPlayer.getXRot());
+                    SceneController.Look userLook = SceneController.detachedLook(cameraEntity.getId());
+                    float rawYaw = userLook == null ? localPlayer.getYRot() : userLook.yaw();
+                    float rawPitch = userLook == null ? localPlayer.getXRot() : userLook.pitch();
+                    scenesync$userYawOffset = SceneCameraMath.clampUserOffset(
+                            wrapDegrees(rawYaw - sample.yaw()), centerYaw, maxYaw);
+                    scenesync$userPitchOffset = SceneCameraMath.clampUserOffset(
+                            rawPitch - sample.pitch(), centerPitch, maxPitch);
+                    scenesync$limitedActive = true;
                     scenesync$cameraEntityId = cameraEntity.getId();
                     SceneCameraMath.Look limited = SceneCameraMath.limitedLook(sample.yaw(), sample.pitch(),
                             centerYaw, centerPitch, scenesync$userYawOffset, scenesync$userPitchOffset,
@@ -182,10 +175,12 @@ public abstract class CameraMixin {
                     yaw = limited.yaw();
                     pitch = limited.pitch();
                 }
-                // Persist the constrained rotation on the actor as well as the camera, so neither
-                // outgoing movement packets nor ending a scene can snap to an unconstrained aim.
-                localPlayer.setYRot(yaw);
-                localPlayer.setXRot(pitch);
+                // LOCKED owns the actor rotation. LIMITED must keep the camera rotation
+                // separate so the authored head pose and actor direction are untouched.
+                if (sample.cameraMode() == SceneTrack.CameraMode.LOCKED) {
+                    localPlayer.setYRot(yaw);
+                    localPlayer.setXRot(pitch);
+                }
                 scenesync$lastAppliedYaw = yaw;
                 scenesync$lastAppliedPitch = pitch;
                 boolean mirrored = Minecraft.getInstance().options.getCameraType().isMirrored();
