@@ -129,6 +129,40 @@ public abstract class CameraMixin {
                 return;
             }
 
+            if (sample.cameraMode() == SceneTrack.CameraMode.LIMITED
+                    && !Minecraft.getInstance().options.getCameraType().isFirstPerson()) {
+                // LIMITED third-person must use the same detached pivot/distance path
+                // as FREE_LOOK. Reusing vanilla's camera position while replacing only
+                // its rotation makes F3/F5 front view and the look vector disagree,
+                // which can flip the view across the actor when the limit is reached.
+                Camera camera = (Camera)(Object)this;
+                boolean mirrored = Minecraft.getInstance().options.getCameraType().isMirrored();
+                Vec3 vanillaPivot = interpolatedEntityPosition.add(0.0, localPlayer.getEyeHeight(), 0.0);
+                Vec3 vanillaOffset = camera.position().subtract(vanillaPivot);
+                if (scenesync$detachedDistance < 0.0 || scenesync$cameraEntityId != cameraEntity.getId()
+                        || scenesync$detachedMirrored != mirrored) {
+                    scenesync$detachedDistance = Math.max(0.05, vanillaOffset.length());
+                    scenesync$detachedMirrored = mirrored;
+                }
+                SceneController.beginDetachedLook(cameraEntity.getId(), localPlayer.getYRot(), localPlayer.getXRot());
+                SceneController.Look userLook = SceneController.detachedLook(cameraEntity.getId());
+                float rawYaw = userLook == null ? localPlayer.getYRot() : userLook.yaw();
+                float rawPitch = userLook == null ? localPlayer.getXRot() : userLook.pitch();
+                float maxYaw = sample.maxYawDegrees(), maxPitch = sample.maxPitchDegrees();
+                float centerYaw = clamp(sample.cameraYaw(), -maxYaw, maxYaw);
+                float centerPitch = clamp(sample.cameraPitch(), -maxPitch, maxPitch);
+                float userYaw = SceneCameraMath.clampUserOffset(wrapDegrees(rawYaw - sample.yaw()), centerYaw, maxYaw);
+                float userPitch = SceneCameraMath.clampUserOffset(rawPitch - sample.pitch(), centerPitch, maxPitch);
+                SceneCameraMath.Look limited = SceneCameraMath.limitedLook(sample.yaw(), sample.pitch(),
+                        centerYaw, centerPitch, userYaw, userPitch, maxYaw, maxPitch);
+                applyDetachedCamera(localPlayer, sample, limited.yaw(), limited.pitch(), scenesync$detachedDistance);
+                scenesync$wasLocked = false;
+                scenesync$limitedActive = true;
+                scenesync$cameraEntityId = cameraEntity.getId();
+                fov = Math.max(30.0f, Math.min(110.0f, fov + sample.cameraFov() * sample.sceneBlend()));
+                return;
+            }
+
             Vec3 correction = new Vec3(sample.worldX() - interpolatedEntityPosition.x,
                     sample.worldY() - interpolatedEntityPosition.y, sample.worldZ() - interpolatedEntityPosition.z);
             scenesync$detachedDistance = -1.0;

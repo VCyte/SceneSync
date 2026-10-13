@@ -1,3 +1,10 @@
+# SceneSync 0.3.7 limited third-person camera fix
+
+- LIMITED now uses a detached scene pivot and exact vanilla F3/F5 distance in third-person.
+- Camera position and camera direction are calculated from the same constrained look, preventing front/back flips at the limit.
+- Switching between rear and front third-person preserves the configured yaw/pitch cone.
+- First-person LIMITED behavior from 0.3.6 remains unchanged.
+
 # SceneSync 0.3.6 limited camera separation
 
 - LIMITED now uses the same independent camera look accumulator in first- and third-person.
