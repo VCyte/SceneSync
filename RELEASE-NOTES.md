@@ -1,3 +1,10 @@
+# SceneSync 0.3.13 camera-object chunk anchor
+
+- The detached camera now updates the actual `Camera` object position first, then aligns `ClientChunkCache` with that final camera chunk in the same render update.
+- This connects the camera position used by `LevelRenderer` to the client cache anchor instead of relying only on the actor/player position.
+- Third-person fallback probing now retains the nearest actually loaded point rather than accidentally restoring the original pivot after finding one.
+- This does not create chunks that the server has not sent; it makes already streamed camera-area chunks usable by the renderer.
+
 # SceneSync 0.3.12 actual loaded-chunk camera fallback
 
 - Fixed the root cause of the void-camera fallback: `ClientLevel.hasChunk()` returns `true` in Minecraft 26.2 and cannot be used as a loaded-chunk test.

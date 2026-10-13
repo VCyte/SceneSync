@@ -103,6 +103,7 @@ public abstract class CameraMixin {
                 if (look != null) {
                     Vec3 pivot = scenesync$loadedPivot(localPlayer, sample, partialTick);
                     setPosition(pivot);
+                    scenesync$followCameraChunk(localPlayer, pivot);
                     SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(look.yaw(), look.pitch(), false);
                     setRotation(cameraLook.yaw(), cameraLook.pitch());
                 }
@@ -267,7 +268,6 @@ public abstract class CameraMixin {
         // place the camera in an absent chunk: step back toward the loaded pivot in small
         // increments so the camera keeps as much of the F5 distance as is available.
         if (!desiredLoaded) {
-            Vec3 loaded = pivot;
             for (int i = 1; i <= 16; i++) {
                 Vec3 candidate = desired.lerp(pivot, i / 16.0);
                 if (scenesync$isChunkLoaded(player, candidate)) {
@@ -275,7 +275,6 @@ public abstract class CameraMixin {
                     break;
                 }
             }
-            desired = loaded;
         }
         BlockHitResult hit = player.level().clip(new ClipContext(
                 pivot, desired, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
@@ -283,8 +282,16 @@ public abstract class CameraMixin {
                 ? desired : hit.getLocation().subtract(forward.scale(0.05));
         scenesync$debugLog(player, sample, pivot, desiredLoaded, cameraPosition, partialTick);
         setPosition(cameraPosition);
+        scenesync$followCameraChunk(player, cameraPosition);
         SceneCameraMath.Look cameraLook = SceneCameraMath.forCamera(yaw, pitch, mirrored);
         setRotation(cameraLook.yaw(), cameraLook.pitch());
+    }
+
+    /** Align vanilla's client cache anchor with the final position of the Camera object. */
+    @Unique private static void scenesync$followCameraChunk(LocalPlayer player, Vec3 cameraPosition) {
+        BlockPos block = BlockPos.containing(cameraPosition);
+        ((ClientChunkCache) player.level().getChunkSource()).updateViewCenter(
+                block.getX() >> 4, block.getZ() >> 4);
     }
 
     /** ClientLevel.hasChunk is not a loaded-chunk test in 26.2; it returns true. */
